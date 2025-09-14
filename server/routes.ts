@@ -2642,8 +2642,10 @@ Respond with the refined solution only:`;
         
         // SPECIAL CASE: Don't deduct tokens from jmkuczynski or randyjohnson
         if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson') {
-          // Deduct tokens
-          await storage.updateUserTokenBalance(userId, (user.tokenBalance || 0) - actualTotalTokens);
+          // Prevent negative balance - deduct only what the user can afford
+          const currentBalance = user.tokenBalance || 0;
+          const newBalance = Math.max(0, currentBalance - actualTotalTokens);
+          await storage.updateUserTokenBalance(userId, newBalance);
           
           // Log token usage
           await storage.createTokenUsage({
@@ -2651,7 +2653,7 @@ Respond with the refined solution only:`;
             sessionId: null,
             inputTokens,
             outputTokens: actualOutputTokens,
-            remainingBalance: (user.tokenBalance || 0) - actualTotalTokens
+            remainingBalance: newBalance
           });
         }
         
