@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { Textarea } from './textarea';
 import { VoiceInput } from './voice-input';
 import { Button } from './button';
@@ -13,6 +13,7 @@ export interface TextareaWithVoiceProps extends React.TextareaHTMLAttributes<HTM
 
 const TextareaWithVoice = forwardRef<HTMLTextAreaElement, TextareaWithVoiceProps>(
   ({ className, onVoiceTranscript, showVoiceButton = true, showClearButton = true, onChange, value, ...props }, ref) => {
+    const [isTranscribing, setIsTranscribing] = useState(false);
     const handleVoiceTranscript = (transcript: string) => {
       if (onVoiceTranscript) {
         onVoiceTranscript(transcript);
@@ -34,6 +35,20 @@ const TextareaWithVoice = forwardRef<HTMLTextAreaElement, TextareaWithVoiceProps
         const currentValue = String(value || '');
         const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove previous partial
         const newValue = baseText + (partialText.trim() ? ` [${partialText.trim()}]` : '');
+        const event = {
+          target: { value: newValue }
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        onChange(event);
+      }
+    };
+
+    const handleTranscriptionStatus = (isActive: boolean) => {
+      setIsTranscribing(isActive);
+      if (isActive && onChange) {
+        // Show transcription message
+        const currentValue = String(value || '');
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove any partial text
+        const newValue = baseText + ' [Transcribing...]';
         const event = {
           target: { value: newValue }
         } as React.ChangeEvent<HTMLTextAreaElement>;
@@ -80,6 +95,7 @@ const TextareaWithVoice = forwardRef<HTMLTextAreaElement, TextareaWithVoiceProps
             <VoiceInput
               onTranscript={handleVoiceTranscript}
               onPartialTranscript={handlePartialTranscript}
+              onTranscriptionStatus={handleTranscriptionStatus}
               size="sm"
             />
           )}

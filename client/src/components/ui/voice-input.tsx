@@ -6,12 +6,13 @@ import { cn } from '@/lib/utils';
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
   onPartialTranscript?: (text: string) => void;  // For real-time updates
+  onTranscriptionStatus?: (isTranscribing: boolean) => void;  // For transcription status
   isActive?: boolean;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false, className, size = 'md' }: VoiceInputProps) {
+export function VoiceInput({ onTranscript, onPartialTranscript, onTranscriptionStatus, isActive = false, className, size = 'md' }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
@@ -165,6 +166,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     // Prevent concurrent processing
     isProcessingQueue.current = true;
     setRecordingState('transcribing');
+    onTranscriptionStatus?.(true);
     
     try {
       // Process utterances in order
@@ -199,6 +201,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     } finally {
       // Always release the processing lock
       isProcessingQueue.current = false;
+      onTranscriptionStatus?.(false);
     }
     
     // Return to listening state if still recording
