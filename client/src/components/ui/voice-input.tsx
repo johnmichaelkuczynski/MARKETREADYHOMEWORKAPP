@@ -46,15 +46,19 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
       // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 16000,
+          sampleRate: 44100,  // Higher sample rate for better quality
           channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         } 
       });
       streamRef.current = stream;
       setIsListening(true);
       setError(null);
+      
+      // Clear previous audio chunks
+      audioChunksRef.current = [];
       
       // Set up MediaRecorder to capture audio
       const mediaRecorder = new MediaRecorder(stream, {
@@ -62,15 +66,52 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
       });
       mediaRecorderRef.current = mediaRecorder;
       
+      let hasAudio = false;
+      
+      // Set up audio level detection
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      const checkAudioLevel = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        if (average > 10) { // Threshold for detecting audio
+          hasAudio = true;
+        }
+      };
+      
+      const audioCheckInterval = setInterval(checkAudioLevel, 100);
+      
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data.size > 1000) { // Minimum size check
           audioChunksRef.current.push(event.data);
         }
       };
       
       mediaRecorder.onstop = async () => {
+        clearInterval(audioCheckInterval);
+        audioContext.close();
+        
+        if (!hasAudio || audioChunksRef.current.length === 0) {
+          setError('No speech detected. Please try again.');
+          audioChunksRef.current = [];
+          return;
+        }
+        
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         audioChunksRef.current = [];
+        
+        // Validate minimum file size
+        if (audioBlob.size < 2000) {
+          setError('Recording too short. Please speak longer.');
+          return;
+        }
         
         // Send to server for transcription
         try {
@@ -83,7 +124,8 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
           });
           
           if (!response.ok) {
-            throw new Error('Transcription failed');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Transcription failed');
           }
           
           const { text } = await response.json();
@@ -91,22 +133,25 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
           if (text && text.trim()) {
             console.log('Voice transcript received:', text);
             onTranscript(text.trim());
+            setError(null); // Clear any previous errors
+          } else {
+            setError('No speech detected in recording');
           }
           
         } catch (error) {
           console.error('Transcription error:', error);
-          setError('Transcription failed');
+          setError(error instanceof Error ? error.message : 'Transcription failed');
         }
       };
       
-      // Record for 3 seconds, then automatically stop and transcribe
-      mediaRecorder.start();
+      // Record for 5 seconds, then automatically stop and transcribe
+      mediaRecorder.start(100); // Collect data every 100ms
       setTimeout(() => {
         if (mediaRecorder.state === 'recording') {
           mediaRecorder.stop();
           setIsListening(false);
         }
-      }, 3000);
+      }, 5000); // Increased to 5 seconds
       
     } catch (error: any) {
       console.error('Failed to start recording:', error);
