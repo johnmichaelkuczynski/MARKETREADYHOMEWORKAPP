@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Mic, MicOff, Volume2 } from 'lucide-react';
+import { Mic, MicOff } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 
@@ -15,15 +15,14 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
-  const [currentTranscript, setCurrentTranscript] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   useEffect(() => {
+    // Check browser support
+    setIsSupported(!!navigator.mediaDevices?.getUserMedia);
+    
     // Cleanup function
     return () => {
       stopRecording();
@@ -34,32 +33,10 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    if (socketRef.current) {
-      // Send terminate session message if still open
-      if (socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ terminate_session: true }));
-      }
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-    
-    // Finalize transcript
-    if (currentTranscript.trim()) {
-      onTranscript(currentTranscript.trim());
-    }
-    setCurrentTranscript('');
     setIsListening(false);
   };
 
@@ -78,7 +55,6 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       streamRef.current = stream;
       setIsListening(true);
       setError(null);
-      setCurrentTranscript('');
       
       // Clear previous audio chunks
       audioChunksRef.current = [];
@@ -159,7 +135,6 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
           if (text && text.trim()) {
             console.log('Voice transcript received:', text);
             onTranscript(text.trim());
-            setCurrentTranscript('');
             setError(null);
           } else {
             setError('No speech detected in recording');
@@ -227,7 +202,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       title={error ? error : (isListening ? "Stop dictation" : "Start voice dictation")}
     >
       {isListening ? (
-        <Volume2 className={iconSizes[size]} />
+        <Mic className={iconSizes[size]} />
       ) : error ? (
         <MicOff className={cn(iconSizes[size], "text-red-500")} />
       ) : (
