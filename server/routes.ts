@@ -3164,7 +3164,7 @@ Respond with the refined solution only:`;
       let result: {response: string, graphData?: any};
       switch (provider) {
         case 'anthropic':
-          result = await processWithAnthropic(fullPrompt);
+          result = await processWithAnthropicChat(message, conversationHistory, context);
           break;
         case 'openai':
           result = await processWithOpenAI(fullPrompt);
