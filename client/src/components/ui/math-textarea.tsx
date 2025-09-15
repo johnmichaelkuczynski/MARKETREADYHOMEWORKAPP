@@ -25,6 +25,7 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
     ...props 
   }, ref) => {
     const [showPreview, setShowPreview] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Use forwarded ref or internal ref
@@ -34,10 +35,41 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
       if (onVoiceTranscript) {
         onVoiceTranscript(transcript);
       } else if (onChange) {
+        // Finalize transcript by removing brackets and appending clean text
         const currentValue = String(value || '');
-        // Don't add extra space if current value is empty or transcript already includes proper spacing
-        const separator = currentValue && !currentValue.endsWith(' ') ? ' ' : '';
-        const newValue = currentValue + separator + transcript;
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove partial in brackets
+        const newValue = baseText + (transcript.trim() ? (baseText ? ' ' + transcript.trim() : transcript.trim()) : '');
+        const syntheticEvent = {
+          target: { value: newValue },
+          currentTarget: { value: newValue },
+          type: 'change'
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        onChange(syntheticEvent);
+      }
+    };
+
+    const handlePartialTranscript = (partialText: string) => {
+      // Show partial transcripts in brackets for real-time feedback
+      if (onChange) {
+        const currentValue = String(value || '');
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove previous partial
+        const newValue = baseText + (partialText.trim() ? ` [${partialText.trim()}]` : '');
+        const syntheticEvent = {
+          target: { value: newValue },
+          currentTarget: { value: newValue },
+          type: 'change'
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        onChange(syntheticEvent);
+      }
+    };
+
+    const handleTranscriptionStatus = (isActive: boolean) => {
+      setIsTranscribing(isActive);
+      if (isActive && onChange) {
+        // Show transcription message
+        const currentValue = String(value || '');
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove any partial text
+        const newValue = baseText + ' [Transcribing...]';
         const syntheticEvent = {
           target: { value: newValue },
           currentTarget: { value: newValue },
@@ -105,6 +137,8 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
               {showVoiceButton && (
                 <VoiceInput
                   onTranscript={handleVoiceTranscript}
+                  onPartialTranscript={handlePartialTranscript}
+                  onTranscriptionStatus={handleTranscriptionStatus}
                   size="sm"
                 />
               )}
