@@ -3735,8 +3735,11 @@ Please provide an improved solution that addresses the feedback. Maintain proper
         body: JSON.stringify({ expires_in: 3600 }),
       });
 
+      console.log('AssemblyAI token response status:', tokenResponse.status);
       if (!tokenResponse.ok) {
-        throw new Error('Failed to get AssemblyAI token');
+        const errorText = await tokenResponse.text();
+        console.error('AssemblyAI token error response:', errorText);
+        throw new Error(`Failed to get AssemblyAI token: ${tokenResponse.status} ${errorText}`);
       }
 
       const { token } = await tokenResponse.json();
