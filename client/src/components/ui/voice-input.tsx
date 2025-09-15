@@ -146,14 +146,14 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
         }
       };
       
-      // Record for up to 15 seconds, then automatically stop and transcribe
+      // Record for up to 30 seconds, then automatically stop and transcribe
       mediaRecorder.start(100); // Collect data every 100ms
       setTimeout(() => {
         if (mediaRecorder.state === 'recording') {
           mediaRecorder.stop();
           setIsListening(false);
         }
-      }, 15000);
+      }, 30000);
       
     } catch (error: any) {
       console.error('Failed to start recording:', error);
