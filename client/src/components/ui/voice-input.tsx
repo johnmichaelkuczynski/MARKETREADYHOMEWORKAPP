@@ -24,7 +24,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
   const currentUtteranceChunks = useRef<Blob[]>([]);
   const transcriptionQueue = useRef<{ blob: Blob; sequenceId: number }[]>([]);
   const nextSequenceId = useRef(0);
-  const processingSequenceId = useRef(0);
+  const isProcessingQueue = useRef(false);
   
   // Voice activity detection state
   const lastSpeechTime = useRef<number>(0);
@@ -82,6 +82,8 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     isCurrentlySpeaking.current = false;
     analyserRef.current = null;
     currentUtteranceChunks.current = [];
+    transcriptionQueue.current = [];
+    isProcessingQueue.current = false;
   };
 
   // Voice Activity Detection - monitors audio levels for speech/silence
@@ -136,7 +138,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     
     const utteranceBlob = new Blob(currentUtteranceChunks.current, { type: 'audio/webm' });
     
-    // Check minimum duration (rough estimate based on blob size)
+    // Check minimum duration - rough estimation: 2KB ≈ 600ms of compressed audio
     if (utteranceBlob.size < 2000) {
       currentUtteranceChunks.current = [];
       return;
@@ -147,44 +149,51 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     transcriptionQueue.current.push({ blob: utteranceBlob, sequenceId });
     currentUtteranceChunks.current = [];
     
-    // Process transcription queue
+    // Process transcription queue (concurrency-safe)
     processTranscriptionQueue();
   };
   
-  // Process queued utterances for transcription
+  // Process queued utterances for transcription (with concurrency protection)
   const processTranscriptionQueue = async () => {
-    if (transcriptionQueue.current.length === 0) return;
+    if (transcriptionQueue.current.length === 0 || isProcessingQueue.current) return;
     
+    // Prevent concurrent processing
+    isProcessingQueue.current = true;
     setRecordingState('transcribing');
     
-    // Process utterances in order
-    while (transcriptionQueue.current.length > 0) {
-      const { blob, sequenceId } = transcriptionQueue.current.shift()!;
-      
-      try {
-        const formData = new FormData();
-        formData.append('audio', blob, `utterance-${sequenceId}.webm`);
+    try {
+      // Process utterances in order
+      while (transcriptionQueue.current.length > 0) {
+        const { blob, sequenceId } = transcriptionQueue.current.shift()!;
         
-        const response = await fetch('/api/voice/realtime-transcribe', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Transcription failed: ${response.status}`);
+        try {
+          const formData = new FormData();
+          formData.append('audio', blob, `utterance-${sequenceId}.webm`);
+          
+          const response = await fetch('/api/voice/realtime-transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Transcription failed: ${response.status}`);
+          }
+          
+          const { text } = await response.json();
+          
+          if (text && text.trim()) {
+            console.log(`Voice transcript received (${sequenceId}):`, text);
+            onTranscript(text.trim());
+          }
+          
+        } catch (error) {
+          console.error('Transcription error:', error);
+          // Continue processing remaining chunks even if one fails
         }
-        
-        const { text } = await response.json();
-        
-        if (text && text.trim()) {
-          console.log(`Voice transcript received (${sequenceId}):`, text);
-          onTranscript(text.trim());
-        }
-        
-      } catch (error) {
-        console.error('Transcription error:', error);
-        // Continue processing remaining chunks even if one fails
       }
+    } finally {
+      // Always release the processing lock
+      isProcessingQueue.current = false;
     }
     
     // Return to listening state if still recording
@@ -229,10 +238,19 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
         noiseFloor.current = Math.sqrt(sum / dataArray.length);
       }, 500);
       
-      // Set up continuous MediaRecorder with small timeslices
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      // Set up continuous MediaRecorder with cross-browser compatibility
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/mp4;codecs=mp4a.40.2';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            throw new Error('Browser does not support audio recording');
+          }
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       
       mediaRecorder.ondataavailable = (event) => {
@@ -251,7 +269,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       currentUtteranceChunks.current = [];
       transcriptionQueue.current = [];
       nextSequenceId.current = 0;
-      processingSequenceId.current = 0;
+      isProcessingQueue.current = false;
       lastSpeechTime.current = Date.now();
       isCurrentlySpeaking.current = false;
       
