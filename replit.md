@@ -128,3 +128,9 @@ The application employs a clear client-server architecture.
   - Eliminates confusion during the delay between speech completion and text appearance
   - Shows real-time status: listening (blue) → speaking (green) → transcribing (purple) → completed text
   - Provides clear visual feedback throughout the entire voice input process
+- **Universal Transcription Status Messages**: Extended transcription feedback to ALL voice input locations
+  - Added transcription status to InputWithVoice component for assignment names and all text inputs
+  - Added transcription status to MathTextarea component for homework input with LaTeX math support
+  - Achieved complete consistency across TextareaWithVoice, InputWithVoice, and MathTextarea components
+  - All voice dictation fields now show synchronized "[Transcribing...]" messages during processing pauses
+  - Unified user experience with identical visual feedback patterns across the entire application
