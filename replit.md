@@ -115,3 +115,16 @@ The application employs a clear client-server architecture.
   - **Production-Ready Robustness**: Noise floor calibration, minimum utterance validation, graceful error handling, and proper resource cleanup
   - **Academic Use Case Optimized**: Perfect for dictating long passages, lectures, research notes - users can speak naturally with pauses and get seamless text output
   - **Unlimited Length Dictation**: No arbitrary time limits - speak for minutes or hours, system automatically chunks and processes speech as you pause
+- **Critical AI Chat Bug FIXED**: Resolved major issue where AI chat was returning incorrect responses (e.g., prime number questions getting essay analysis responses)
+  - Root cause: Chat API was calling homework processing function instead of dedicated chat function
+  - Solution: Updated chat endpoint to use proper `processWithAnthropicChat` function for conversational responses
+  - AI chat now provides accurate, contextual answers to user questions instead of homework-style analysis
+- **Voice Dictation in AI Chat RESTORED**: Fixed voice dictation failures in chat interface caused by malformed audio blobs
+  - Issue: Pause-detection system was creating corrupted audio files that couldn't be transcoded by AssemblyAI
+  - Fix: Proper MIME type handling using MediaRecorder's actual format instead of hardcoded values
+  - Improved audio chunk validation and blob construction for reliable transcription
+  - Voice dictation now works seamlessly in both homework input and AI chat interface
+- **Enhanced User Feedback**: Added "Transcribing..." message during voice processing pauses
+  - Eliminates confusion during the delay between speech completion and text appearance
+  - Shows real-time status: listening (blue) → speaking (green) → transcribing (purple) → completed text
+  - Provides clear visual feedback throughout the entire voice input process
