@@ -13,94 +13,123 @@ interface VoiceInputProps {
 export function VoiceInput({ onTranscript, isActive = false, className, size = 'md' }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSupported, setIsSupported] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const accumulatedTextRef = useRef('');
+  const [isSupported, setIsSupported] = useState(true);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setIsSupported(true);
-      recognitionRef.current = new SpeechRecognition();
-      
-      const recognition = recognitionRef.current;
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          }
-        }
-
-        if (finalTranscript.trim()) {
-          console.log('Voice transcript received:', finalTranscript.trim());
-          onTranscript(finalTranscript.trim());
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setError(event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognition.onstart = () => {
-        setError(null);
-        setIsListening(true);
-      };
-    }
-
+    // Cleanup function
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      stopRecording();
     };
-  }, [onTranscript]);
+  }, []);
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const startRecording = async () => {
+    try {
+      // Get real-time token from our server
+      const tokenResponse = await fetch('/api/voice/realtime-token', {
+        method: 'POST',
+      });
+      
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to get transcription token');
+      }
+      
+      const { token } = await tokenResponse.json();
+      
+      // Get microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        } 
+      });
+      streamRef.current = stream;
+      
+      // Create WebSocket connection to AssemblyAI
+      const socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
+      socketRef.current = socket;
+      
+      socket.onopen = () => {
+        console.log('AssemblyAI WebSocket connected');
+        setIsListening(true);
+        setError(null);
+      };
+      
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.message_type === 'FinalTranscript' && data.text) {
+          console.log('Voice transcript received:', data.text);
+          onTranscript(data.text);
+        }
+      };
+      
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setError('Connection failed');
+        stopRecording();
+      };
+      
+      socket.onclose = () => {
+        console.log('WebSocket closed');
+        setIsListening(false);
+      };
+      
+      // Set up MediaRecorder to send audio data
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+          // Convert blob to base64 and send to AssemblyAI
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            const audioData = {
+              audio_data: base64
+            };
+            socket.send(JSON.stringify(audioData));
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+      
+      mediaRecorder.start(250); // Send audio data every 250ms
+      
+    } catch (error: any) {
+      console.error('Failed to start recording:', error);
+      setError(error.message || 'Microphone access denied');
+      setIsListening(false);
+    }
+  };
 
   const handleToggle = useCallback(async () => {
-    if (!recognitionRef.current) {
-      setError('Speech recognition not supported');
-      return;
-    }
-
     if (isListening) {
-      recognitionRef.current.stop();
+      stopRecording();
     } else {
-      try {
-        // Check microphone permissions first
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-          if (permission.state === 'denied') {
-            setError('Microphone access denied');
-            return;
-          }
-        }
-
-        // Request microphone access
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          try {
-            await navigator.mediaDevices.getUserMedia({ audio: true });
-          } catch (permError) {
-            console.error('Microphone permission error:', permError);
-            setError('Microphone permission required');
-            return;
-          }
-        }
-
-        recognitionRef.current.start();
-      } catch (error) {
-        console.error('Failed to start speech recognition:', error);
-        setError('Failed to start recording');
-      }
+      await startRecording();
     }
   }, [isListening]);
 

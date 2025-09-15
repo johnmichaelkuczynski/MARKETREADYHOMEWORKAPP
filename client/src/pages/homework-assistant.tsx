@@ -90,6 +90,22 @@ export default function HomeworkAssistant() {
     });
   };
 
+  // Function to send chat message to GPT BYPASS Box A
+  const sendChatToGptBypass = (content: string) => {
+    setGptBypassText(content);
+    
+    // Scroll to GPT BYPASS section
+    const gptBypassElement = document.querySelector('[data-testid="gpt-bypass-section"]');
+    if (gptBypassElement) {
+      gptBypassElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    toast({
+      title: "Chat sent to GPT BYPASS",
+      description: "AI response copied to Box A for humanization",
+    });
+  };
+
   // Function to receive text from GPT BYPASS Box C to assignment details
   const receiveFromGptBypass = (text: string) => {
     setInputText(text);
@@ -2240,6 +2256,16 @@ ${fullResponse.slice(-1000)}...`;
                               >
                                 <ArrowDown className="w-3 h-3 mr-1" />
                                 Send to Input
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => sendChatToGptBypass(message.content)}
+                                className="text-xs bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                                data-testid={`button-send-to-gptbypass-${index}`}
+                              >
+                                <Zap className="w-3 h-3 mr-1" />
+                                Send to GPT BYPASS
                               </Button>
                               {message.extractedText && (
                                 <Button

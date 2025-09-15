@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { TextareaWithVoice } from "@/components/ui/textarea-with-voice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -955,7 +956,7 @@ export default function GPTBypassSection({ onSendToHomework, receivedHomeworkTex
                   Delete
                 </Button>
               </div>
-              <Textarea
+              <TextareaWithVoice
                 placeholder="Paste your AI-generated text here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -1010,7 +1011,7 @@ export default function GPTBypassSection({ onSendToHomework, receivedHomeworkTex
                   Delete
                 </Button>
               </div>
-              <Textarea
+              <TextareaWithVoice
                 placeholder="Writing sample to clone style from..."
                 value={styleText}
                 onChange={(e) => {
@@ -1159,7 +1160,7 @@ export default function GPTBypassSection({ onSendToHomework, receivedHomeworkTex
           {/* Custom Instructions Box */}
           <div className="mb-6">
             <Label className="text-lg font-medium mb-2 block">Custom Instructions</Label>
-            <Textarea
+            <TextareaWithVoice
               placeholder="Enter specific instructions for how the rewrite should be done..."
               value={customInstructions}
               onChange={(e) => setCustomInstructions(e.target.value)}

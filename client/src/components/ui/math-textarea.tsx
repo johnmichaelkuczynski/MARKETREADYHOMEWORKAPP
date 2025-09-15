@@ -1,6 +1,6 @@
 import { forwardRef, useState, useRef, useEffect } from 'react';
 import { Textarea } from './textarea';
-import { AzureSpeechInput } from './azure-speech-input';
+import { VoiceInput } from './voice-input';
 import { Button } from './button';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,6 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
     ...props 
   }, ref) => {
     const [showPreview, setShowPreview] = useState(false);
-    const [interimText, setInterimText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Use forwarded ref or internal ref
@@ -46,11 +45,6 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
         } as React.ChangeEvent<HTMLTextAreaElement>;
         onChange(syntheticEvent);
       }
-    };
-
-    const handleInterimTranscript = (transcript: string) => {
-      // Show interim text overlay without clearing previous content
-      setInterimText(transcript);
     };
 
     const handleClear = () => {
@@ -79,15 +73,6 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
             onChange={onChange}
             {...props}
           />
-          
-          {/* Interim speech overlay */}
-          {interimText && (
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="h-full w-full p-3 text-gray-400 italic whitespace-pre-wrap">
-                {interimText}
-              </div>
-            </div>
-          )}
           
           {hasButtons && (
             <div className="absolute top-2 right-2 flex items-center space-x-1">
@@ -118,10 +103,9 @@ const MathTextarea = forwardRef<HTMLTextAreaElement, MathTextareaProps>(
               )}
               
               {showVoiceButton && (
-                <AzureSpeechInput
-                  onResult={handleVoiceTranscript}
-                  onInterim={handleInterimTranscript}
-                  className="h-6 w-6"
+                <VoiceInput
+                  onTranscript={handleVoiceTranscript}
+                  size="sm"
                 />
               )}
             </div>
