@@ -15,9 +15,27 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
+  const [recordingState, setRecordingState] = useState<'idle' | 'listening' | 'speaking' | 'transcribing'>('idle');
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const currentUtteranceChunks = useRef<Blob[]>([]);
+  const transcriptionQueue = useRef<{ blob: Blob; sequenceId: number }[]>([]);
+  const nextSequenceId = useRef(0);
+  const processingSequenceId = useRef(0);
+  
+  // Voice activity detection state
+  const lastSpeechTime = useRef<number>(0);
+  const isCurrentlySpeaking = useRef(false);
+  const vadIntervalRef = useRef<number | null>(null);
+  const noiseFloor = useRef<number>(0.02);
+  
+  // Configurable thresholds
+  const SILENCE_DURATION_MS = 1300; // 1.3 seconds of silence triggers transcription
+  const MIN_UTTERANCE_DURATION_MS = 600; // Minimum 0.6 seconds to be considered valid speech
+  const SPEECH_THRESHOLD_MULTIPLIER = 2.5;
 
   useEffect(() => {
     // Check browser support
@@ -29,15 +47,150 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
     };
   }, []);
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
+    // Clear voice activity detection interval
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+    
+    // Finalize any pending utterance
+    if (currentUtteranceChunks.current.length > 0) {
+      await finalizeCurrentUtterance();
+    }
+    
+    // Stop MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    
+    // Close AudioContext
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    // Stop media stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    
+    // Reset state
     setIsListening(false);
+    setRecordingState('idle');
+    isCurrentlySpeaking.current = false;
+    analyserRef.current = null;
+    currentUtteranceChunks.current = [];
+  };
+
+  // Voice Activity Detection - monitors audio levels for speech/silence
+  const startVoiceActivityDetection = () => {
+    if (!analyserRef.current) return;
+    
+    const analyser = analyserRef.current;
+    const dataArray = new Float32Array(analyser.fftSize);
+    
+    const detectVoiceActivity = () => {
+      if (!analyserRef.current || !isListening) return;
+      
+      // Get time-domain audio data for RMS calculation
+      analyser.getFloatTimeDomainData(dataArray);
+      
+      // Calculate RMS (Root Mean Square) for audio level
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i] * dataArray[i];
+      }
+      const rms = Math.sqrt(sum / dataArray.length);
+      
+      const speechThreshold = Math.max(0.02, noiseFloor.current * SPEECH_THRESHOLD_MULTIPLIER);
+      const now = Date.now();
+      
+      if (rms > speechThreshold) {
+        // Speech detected
+        lastSpeechTime.current = now;
+        if (!isCurrentlySpeaking.current) {
+          isCurrentlySpeaking.current = true;
+          setRecordingState('speaking');
+        }
+      } else {
+        // Silence detected
+        const silenceDuration = now - lastSpeechTime.current;
+        
+        if (isCurrentlySpeaking.current && silenceDuration >= SILENCE_DURATION_MS) {
+          // Pause detected - finalize current utterance
+          finalizeCurrentUtterance();
+          isCurrentlySpeaking.current = false;
+          setRecordingState('listening');
+        }
+      }
+    };
+    
+    vadIntervalRef.current = window.setInterval(detectVoiceActivity, 100);
+  };
+  
+  // Finalize and queue current utterance for transcription
+  const finalizeCurrentUtterance = async () => {
+    if (currentUtteranceChunks.current.length === 0) return;
+    
+    const utteranceBlob = new Blob(currentUtteranceChunks.current, { type: 'audio/webm' });
+    
+    // Check minimum duration (rough estimate based on blob size)
+    if (utteranceBlob.size < 2000) {
+      currentUtteranceChunks.current = [];
+      return;
+    }
+    
+    // Add to transcription queue with sequence ID
+    const sequenceId = nextSequenceId.current++;
+    transcriptionQueue.current.push({ blob: utteranceBlob, sequenceId });
+    currentUtteranceChunks.current = [];
+    
+    // Process transcription queue
+    processTranscriptionQueue();
+  };
+  
+  // Process queued utterances for transcription
+  const processTranscriptionQueue = async () => {
+    if (transcriptionQueue.current.length === 0) return;
+    
+    setRecordingState('transcribing');
+    
+    // Process utterances in order
+    while (transcriptionQueue.current.length > 0) {
+      const { blob, sequenceId } = transcriptionQueue.current.shift()!;
+      
+      try {
+        const formData = new FormData();
+        formData.append('audio', blob, `utterance-${sequenceId}.webm`);
+        
+        const response = await fetch('/api/voice/realtime-transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Transcription failed: ${response.status}`);
+        }
+        
+        const { text } = await response.json();
+        
+        if (text && text.trim()) {
+          console.log(`Voice transcript received (${sequenceId}):`, text);
+          onTranscript(text.trim());
+        }
+        
+      } catch (error) {
+        console.error('Transcription error:', error);
+        // Continue processing remaining chunks even if one fails
+      }
+    }
+    
+    // Return to listening state if still recording
+    if (isListening) {
+      setRecordingState(isCurrentlySpeaking.current ? 'speaking' : 'listening');
+    }
   };
 
   const startRecording = async () => {
@@ -45,7 +198,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 44100,  // High quality recording
+          sampleRate: 44100,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -53,112 +206,63 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
         } 
       });
       streamRef.current = stream;
-      setIsListening(true);
-      setError(null);
       
-      // Clear previous audio chunks
-      audioChunksRef.current = [];
+      // Set up audio context for voice activity detection
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       
-      // Set up MediaRecorder to capture audio
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512; // Good balance for VAD
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      
+      // Calibrate noise floor (first 500ms)
+      setTimeout(() => {
+        const dataArray = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i] * dataArray[i];
+        }
+        noiseFloor.current = Math.sqrt(sum / dataArray.length);
+      }, 500);
+      
+      // Set up continuous MediaRecorder with small timeslices
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
       mediaRecorderRef.current = mediaRecorder;
       
-      // Real-time audio level monitoring for better UX
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      let hasDetectedAudio = false;
-      
-      const checkAudioLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        if (average > 15) { // Threshold for detecting speech
-          hasDetectedAudio = true;
-        }
-        
-        // Show partial feedback while recording (simulated)
-        if (hasDetectedAudio && onPartialTranscript) {
-          onPartialTranscript('Recording...'); // Basic feedback
-        }
-      };
-      
-      const audioCheckInterval = setInterval(checkAudioLevel, 200);
-      
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 1000) {
-          audioChunksRef.current.push(event.data);
+        if (event.data.size > 100) {
+          currentUtteranceChunks.current.push(event.data);
         }
       };
       
-      mediaRecorder.onstop = async () => {
-        clearInterval(audioCheckInterval);
-        audioContext.close();
-        
-        if (!hasDetectedAudio || audioChunksRef.current.length === 0) {
-          setError('No speech detected. Please try again.');
-          audioChunksRef.current = [];
-          return;
-        }
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        audioChunksRef.current = [];
-        
-        if (audioBlob.size < 2000) {
-          setError('Recording too short. Please speak longer.');
-          return;
-        }
-        
-        // Send to server for transcription using the working endpoint
-        try {
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          
-          const response = await fetch('/api/voice/realtime-transcribe', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Transcription failed');
-          }
-          
-          const { text } = await response.json();
-          
-          if (text && text.trim()) {
-            console.log('Voice transcript received:', text);
-            onTranscript(text.trim());
-            setError(null);
-          } else {
-            setError('No speech detected in recording');
-          }
-          
-        } catch (error) {
-          console.error('Transcription error:', error);
-          setError(error instanceof Error ? error.message : 'Transcription failed');
-        }
-      };
+      // Start continuous recording with 200ms timeslices
+      mediaRecorder.start(200);
       
-      // Record for up to 30 seconds, then automatically stop and transcribe
-      mediaRecorder.start(100); // Collect data every 100ms
-      setTimeout(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-          setIsListening(false);
-        }
-      }, 30000);
+      // Initialize state
+      setIsListening(true);
+      setRecordingState('listening');
+      setError(null);
+      currentUtteranceChunks.current = [];
+      transcriptionQueue.current = [];
+      nextSequenceId.current = 0;
+      processingSequenceId.current = 0;
+      lastSpeechTime.current = Date.now();
+      isCurrentlySpeaking.current = false;
+      
+      // Start voice activity detection
+      startVoiceActivityDetection();
       
     } catch (error: any) {
       console.error('Failed to start recording:', error);
       setError(error.message || 'Microphone access denied');
       setIsListening(false);
+      setRecordingState('idle');
     }
   };
 
@@ -193,20 +297,35 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       size="sm"
       className={cn(
         sizeClasses[size],
-        "p-1 transition-all duration-200",
-        isListening && "bg-red-500 hover:bg-red-600 text-white recording-pulse",
+        "p-1 transition-all duration-200 relative",
+        recordingState === 'listening' && "bg-blue-500 hover:bg-blue-600 text-white",
+        recordingState === 'speaking' && "bg-green-500 hover:bg-green-600 text-white recording-pulse",
+        recordingState === 'transcribing' && "bg-purple-500 hover:bg-purple-600 text-white animate-pulse",
         error && "border-red-300 bg-red-50",
         className
       )}
       onClick={handleToggle}
-      title={error ? error : (isListening ? "Stop dictation" : "Start voice dictation")}
+      title={
+        error ? error :
+        recordingState === 'idle' ? "Start voice dictation" :
+        recordingState === 'listening' ? "Listening... (speak or click to stop)" :
+        recordingState === 'speaking' ? "Speaking detected - pause to transcribe" :
+        recordingState === 'transcribing' ? "Processing speech..." :
+        "Voice dictation"
+      }
+      data-testid={`voice-input-${recordingState}`}
     >
-      {isListening ? (
-        <Mic className={iconSizes[size]} />
+      {recordingState === 'transcribing' ? (
+        <div className={cn(iconSizes[size], "animate-spin")}>⟳</div>
       ) : error ? (
         <MicOff className={cn(iconSizes[size], "text-red-500")} />
       ) : (
         <Mic className={iconSizes[size]} />
+      )}
+      
+      {/* Show recording state indicator */}
+      {recordingState !== 'idle' && !error && (
+        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-current opacity-75" />
       )}
     </Button>
   );
