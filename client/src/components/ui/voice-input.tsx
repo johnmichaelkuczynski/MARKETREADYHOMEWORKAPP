@@ -68,7 +68,7 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          sampleRate: 16000,  // AssemblyAI prefers 16khz
+          sampleRate: 44100,  // High quality recording
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -80,92 +80,105 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
       setError(null);
       setCurrentTranscript('');
       
-      // Get WebSocket connection token from server
-      const tokenResponse = await fetch('/api/voice/streaming-token');
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to get streaming token');
-      }
-      const { token } = await tokenResponse.json();
+      // Clear previous audio chunks
+      audioChunksRef.current = [];
       
-      // Create WebSocket connection to AssemblyAI Universal-Streaming
-      const socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
-      socketRef.current = socket;
+      // Set up MediaRecorder to capture audio
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      mediaRecorderRef.current = mediaRecorder;
       
-      socket.onopen = () => {
-        console.log('Connected to AssemblyAI streaming');
-      };
-      
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Streaming message:', data);
-        
-        if (data.message_type === 'PartialTranscript' && data.text) {
-          // Update partial transcript in real-time
-          setCurrentTranscript(data.text);
-          if (onPartialTranscript) {
-            onPartialTranscript(data.text);
-          }
-        } else if (data.message_type === 'FinalTranscript' && data.text) {
-          // Final transcript received
-          setCurrentTranscript(data.text);
-          console.log('Final transcript:', data.text);
-        }
-      };
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setError('Connection failed');
-        stopRecording();
-      };
-      
-      socket.onclose = () => {
-        console.log('WebSocket closed');
-      };
-      
-      // Set up audio processing to send PCM data to WebSocket
-      const audioContext = new AudioContext(); // Let browser use native sample rate
-      audioContextRef.current = audioContext;
-      
+      // Real-time audio level monitoring for better UX
+      const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
       
-      processor.onaudioprocess = (event) => {
-        if (socket.readyState === WebSocket.OPEN) {
-          const inputBuffer = event.inputBuffer.getChannelData(0);
-          const inputSampleRate = audioContext.sampleRate;
-          const outputSampleRate = 16000;
-          
-          // Downsample to 16kHz if needed
-          let outputBuffer = inputBuffer;
-          if (inputSampleRate !== outputSampleRate) {
-            const sampleRateRatio = inputSampleRate / outputSampleRate;
-            const outputLength = Math.floor(inputBuffer.length / sampleRateRatio);
-            outputBuffer = new Float32Array(outputLength);
-            
-            for (let i = 0; i < outputLength; i++) {
-              const inputIndex = Math.floor(i * sampleRateRatio);
-              outputBuffer[i] = inputBuffer[inputIndex];
-            }
-          }
-          
-          // Convert Float32Array to Int16Array (PCM16)
-          const pcm16 = new Int16Array(outputBuffer.length);
-          for (let i = 0; i < outputBuffer.length; i++) {
-            const sample = Math.max(-1, Math.min(1, outputBuffer[i]));
-            pcm16[i] = sample * 0x7FFF;
-          }
-          
-          // Send as JSON message with audio_data field for AssemblyAI
-          const base64 = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(pcm16.buffer))));
-          socket.send(JSON.stringify({ audio_data: base64 }));
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let hasDetectedAudio = false;
+      
+      const checkAudioLevel = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        if (average > 15) { // Threshold for detecting speech
+          hasDetectedAudio = true;
+        }
+        
+        // Show partial feedback while recording (simulated)
+        if (hasDetectedAudio && onPartialTranscript) {
+          onPartialTranscript('Recording...'); // Basic feedback
         }
       };
       
-      source.connect(processor);
-      // Don't connect to destination to avoid audio feedback
+      const audioCheckInterval = setInterval(checkAudioLevel, 200);
       
-      // Let user control recording duration (removed auto-stop)
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 1000) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        clearInterval(audioCheckInterval);
+        audioContext.close();
+        
+        if (!hasDetectedAudio || audioChunksRef.current.length === 0) {
+          setError('No speech detected. Please try again.');
+          audioChunksRef.current = [];
+          return;
+        }
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+        
+        if (audioBlob.size < 2000) {
+          setError('Recording too short. Please speak longer.');
+          return;
+        }
+        
+        // Send to server for transcription using the working endpoint
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          
+          const response = await fetch('/api/voice/realtime-transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Transcription failed');
+          }
+          
+          const { text } = await response.json();
+          
+          if (text && text.trim()) {
+            console.log('Voice transcript received:', text);
+            onTranscript(text.trim());
+            setCurrentTranscript('');
+            setError(null);
+          } else {
+            setError('No speech detected in recording');
+          }
+          
+        } catch (error) {
+          console.error('Transcription error:', error);
+          setError(error instanceof Error ? error.message : 'Transcription failed');
+        }
+      };
+      
+      // Record for 5 seconds, then automatically stop and transcribe
+      mediaRecorder.start(100); // Collect data every 100ms
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          setIsListening(false);
+        }
+      }, 5000);
       
     } catch (error: any) {
       console.error('Failed to start recording:', error);

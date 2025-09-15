@@ -3719,36 +3719,6 @@ Please provide an improved solution that addresses the feedback. Maintain proper
     }
   });
 
-  // Get streaming token for AssemblyAI WebSocket connection
-  app.get('/api/voice/streaming-token', async (req, res) => {
-    try {
-      const apiKey = process.env.ASSEMBLYAI_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: 'AssemblyAI API key not configured' });
-      }
-
-      const tokenResponse = await fetch('https://api.assemblyai.com/v2/realtime/token', {
-        method: 'POST',
-        headers: {
-          'authorization': apiKey,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ expires_in: 3600 }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('AssemblyAI token error response:', errorText);
-        throw new Error(`Failed to get AssemblyAI token: ${tokenResponse.status} ${errorText}`);
-      }
-
-      const { token } = await tokenResponse.json();
-      res.json({ token });
-    } catch (error) {
-      console.error('Streaming token error:', error);
-      res.status(500).json({ error: error.message || 'Failed to get streaming token' });
-    }
-  });
 
   app.post('/api/voice/realtime-transcribe', upload.single('audio'), async (req, res) => {
     try {
