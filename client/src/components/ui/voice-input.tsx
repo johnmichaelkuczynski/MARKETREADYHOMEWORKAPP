@@ -43,17 +43,6 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
 
   const startRecording = async () => {
     try {
-      // Get real-time token from our server
-      const tokenResponse = await fetch('/api/voice/realtime-token', {
-        method: 'POST',
-      });
-      
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to get transcription token');
-      }
-      
-      const { token } = await tokenResponse.json();
-      
       // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -64,59 +53,60 @@ export function VoiceInput({ onTranscript, isActive = false, className, size = '
         } 
       });
       streamRef.current = stream;
+      setIsListening(true);
+      setError(null);
       
-      // Create WebSocket connection to AssemblyAI
-      const socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
-      socketRef.current = socket;
-      
-      socket.onopen = () => {
-        console.log('AssemblyAI WebSocket connected');
-        setIsListening(true);
-        setError(null);
-      };
-      
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.message_type === 'FinalTranscript' && data.text) {
-          console.log('Voice transcript received:', data.text);
-          onTranscript(data.text);
-        }
-      };
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setError('Connection failed');
-        stopRecording();
-      };
-      
-      socket.onclose = () => {
-        console.log('WebSocket closed');
-        setIsListening(false);
-      };
-      
-      // Set up MediaRecorder to send audio data
+      // Set up MediaRecorder to capture audio
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
       mediaRecorderRef.current = mediaRecorder;
       
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
-          // Convert blob to base64 and send to AssemblyAI
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = (reader.result as string).split(',')[1];
-            const audioData = {
-              audio_data: base64
-            };
-            socket.send(JSON.stringify(audioData));
-          };
-          reader.readAsDataURL(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
       };
       
-      mediaRecorder.start(250); // Send audio data every 250ms
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+        
+        // Send to server for transcription
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          
+          const response = await fetch('/api/voice/realtime-transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            throw new Error('Transcription failed');
+          }
+          
+          const { text } = await response.json();
+          
+          if (text && text.trim()) {
+            console.log('Voice transcript received:', text);
+            onTranscript(text.trim());
+          }
+          
+        } catch (error) {
+          console.error('Transcription error:', error);
+          setError('Transcription failed');
+        }
+      };
+      
+      // Record for 3 seconds, then automatically stop and transcribe
+      mediaRecorder.start();
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          setIsListening(false);
+        }
+      }, 3000);
       
     } catch (error: any) {
       console.error('Failed to start recording:', error);

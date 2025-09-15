@@ -124,6 +124,7 @@ export class AssemblyAITranscriptionService {
         },
         body: JSON.stringify({
           audio_url: upload_url,
+          speech_model: 'universal',  // Use the new Universal model
           language_detection: true,
         }),
       });

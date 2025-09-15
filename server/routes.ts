@@ -3719,34 +3719,27 @@ Please provide an improved solution that addresses the feedback. Maintain proper
     }
   });
 
-  app.post('/api/voice/realtime-token', async (req, res) => {
+  app.post('/api/voice/realtime-transcribe', upload.single('audio'), async (req, res) => {
     try {
       const apiKey = process.env.ASSEMBLYAI_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: 'AssemblyAI API key not configured' });
       }
 
-      const tokenResponse = await fetch('https://api.assemblyai.com/v2/realtime/token', {
-        method: 'POST',
-        headers: {
-          'authorization': apiKey,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ expires_in: 3600 }),
-      });
-
-      console.log('AssemblyAI token response status:', tokenResponse.status);
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('AssemblyAI token error response:', errorText);
-        throw new Error(`Failed to get AssemblyAI token: ${tokenResponse.status} ${errorText}`);
+      if (!req.file) {
+        return res.status(400).json({ error: 'No audio file provided' });
       }
 
-      const { token } = await tokenResponse.json();
-      res.json({ token });
+      console.log('Processing voice audio with AssemblyAI Universal model...');
+      
+      // Use the AssemblyAI transcription service which now uses Universal model
+      const assemblyAI = new AssemblyAITranscriptionService();
+      const transcript = await assemblyAI.transcribeFile(req.file.buffer, req.file.mimetype);
+      
+      res.json({ text: transcript || '' });
     } catch (error) {
-      console.error('Real-time token error:', error);
-      res.status(500).json({ error: error.message || 'Failed to get real-time token' });
+      console.error('Real-time voice transcription error:', error);
+      res.status(500).json({ error: error.message || 'Failed to transcribe voice audio' });
     }
   });
 
