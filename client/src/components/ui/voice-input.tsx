@@ -136,13 +136,18 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
   const finalizeCurrentUtterance = async () => {
     if (currentUtteranceChunks.current.length === 0) return;
     
-    const utteranceBlob = new Blob(currentUtteranceChunks.current, { type: 'audio/webm' });
+    // Use the same MIME type that MediaRecorder is actually using
+    const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+    const utteranceBlob = new Blob(currentUtteranceChunks.current, { type: mimeType });
     
-    // Check minimum duration - rough estimation: 2KB ≈ 600ms of compressed audio
-    if (utteranceBlob.size < 2000) {
+    // Check minimum duration - be more lenient with size check for chunked audio
+    if (utteranceBlob.size < 1000) {
+      console.log('Utterance too small, skipping:', utteranceBlob.size, 'bytes');
       currentUtteranceChunks.current = [];
       return;
     }
+    
+    console.log('Finalizing utterance:', utteranceBlob.size, 'bytes,', mimeType);
     
     // Add to transcription queue with sequence ID
     const sequenceId = nextSequenceId.current++;
@@ -250,11 +255,13 @@ export function VoiceInput({ onTranscript, onPartialTranscript, isActive = false
         }
       }
       
+      console.log('Using MIME type for recording:', mimeType);
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 100) {
+        if (event.data.size > 0) {
+          console.log('Received audio chunk:', event.data.size, 'bytes');
           currentUtteranceChunks.current.push(event.data);
         }
       };
