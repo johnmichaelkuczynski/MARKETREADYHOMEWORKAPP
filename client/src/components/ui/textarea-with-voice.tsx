@@ -17,9 +17,23 @@ const TextareaWithVoice = forwardRef<HTMLTextAreaElement, TextareaWithVoiceProps
       if (onVoiceTranscript) {
         onVoiceTranscript(transcript);
       } else if (onChange) {
-        // Append transcript to existing value instead of replacing
+        // Finalize transcript by removing brackets and appending clean text
         const currentValue = String(value || '');
-        const newValue = currentValue ? currentValue + ' ' + transcript : transcript;
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove partial in brackets
+        const newValue = baseText + (transcript.trim() ? (baseText ? ' ' + transcript.trim() : transcript.trim()) : '');
+        const event = {
+          target: { value: newValue }
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        onChange(event);
+      }
+    };
+
+    const handlePartialTranscript = (partialText: string) => {
+      // Show partial transcripts in brackets for real-time feedback
+      if (onChange) {
+        const currentValue = String(value || '');
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove previous partial
+        const newValue = baseText + (partialText.trim() ? ` [${partialText.trim()}]` : '');
         const event = {
           target: { value: newValue }
         } as React.ChangeEvent<HTMLTextAreaElement>;
@@ -65,6 +79,7 @@ const TextareaWithVoice = forwardRef<HTMLTextAreaElement, TextareaWithVoiceProps
           {showVoiceButton && (
             <VoiceInput
               onTranscript={handleVoiceTranscript}
+              onPartialTranscript={handlePartialTranscript}
               size="sm"
             />
           )}

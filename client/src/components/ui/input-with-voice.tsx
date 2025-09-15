@@ -27,6 +27,21 @@ const InputWithVoice = forwardRef<HTMLInputElement, InputWithVoiceProps>(
       }
     };
 
+    const handlePartialTranscript = (partialText: string) => {
+      // For input fields, we'll show partial transcripts by updating the value
+      // This creates a preview effect where users see words as they speak
+      if (onChange) {
+        const currentValue = String(value || '');
+        // Find the base text (before any partial transcript)
+        const baseText = currentValue.replace(/ \[.*?\]$/, ''); // Remove previous partial in brackets
+        const newValue = baseText + (partialText.trim() ? ` [${partialText.trim()}]` : '');
+        const event = {
+          target: { value: newValue }
+        } as React.ChangeEvent<HTMLInputElement>;
+        onChange(event);
+      }
+    };
+
     const handleClear = () => {
       if (onChange) {
         const event = {
@@ -65,6 +80,7 @@ const InputWithVoice = forwardRef<HTMLInputElement, InputWithVoiceProps>(
           {showVoiceButton && (
             <VoiceInput
               onTranscript={handleVoiceTranscript}
+              onPartialTranscript={handlePartialTranscript}
               size="sm"
             />
           )}
