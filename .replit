@@ -45,3 +45,5 @@ args = "npm run dev"
 waitForPort = 5000
 
 [agent]
+expertMode = true
+integrations = ["javascript_stripe:1.0.0"]
