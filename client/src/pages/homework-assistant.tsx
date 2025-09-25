@@ -27,7 +27,7 @@ export default function HomeworkAssistant() {
   const [inputText, setInputText] = useState("");
   const [currentAssignmentName, setCurrentAssignmentName] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState("deepseek");
+  const [selectedProvider, setSelectedProvider] = useState("anthropic");
   const [currentResult, setCurrentResult] = useState<any>(null);
   const [wordCount, setWordCount] = useState(0);
   const [aiDetectionResult, setAiDetectionResult] = useState<any>(null);
