@@ -2908,7 +2908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson') {
           const currentBalance = user.tokenBalance || 0;
           const tokensToDeduct = Math.min(actualTotalTokens, currentBalance);
-          await authService.updateUserTokens(userId, currentBalance - tokensToDeduct);
+          await storage.updateUserTokenBalance(userId, currentBalance - tokensToDeduct);
         }
         
         // Save assignment
