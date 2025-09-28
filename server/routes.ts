@@ -3327,28 +3327,31 @@ Respond with the refined solution only:`;
       let graphData: GraphRequest[] = [];
 
       try {
-        // Stream the response chunks
+        // ALWAYS generate the complete solution first
         for await (const chunk of streamFunction) {
           if (chunk) {
             fullContent += chunk;
             
-            // Check if we need to stop streaming due to partial limit
-            if (isPartialResponse && streamedLength + chunk.length >= maxStreamLength) {
-              // Stream only the remaining allowed portion
-              const remainingChars = maxStreamLength - streamedLength;
-              if (remainingChars > 0) {
+            // For partial responses, limit what gets streamed to user but continue generation
+            if (isPartialResponse) {
+              // Only stream to user if we haven't hit the 30% limit yet
+              if (streamedLength + chunk.length < maxStreamLength) {
+                // Stream the full chunk to user
+                res.write(chunk);
+                partialContent += chunk;
+                streamedLength += chunk.length;
+              } else if (streamedLength < maxStreamLength) {
+                // Stream only the remaining allowed portion to user
+                const remainingChars = maxStreamLength - streamedLength;
                 const partialChunk = chunk.substring(0, remainingChars);
                 res.write(partialChunk);
                 partialContent += partialChunk;
-                streamedLength += partialChunk.length;
+                streamedLength = maxStreamLength; // Cap at limit
               }
-              break; // Stop streaming at 30% limit
+              // Continue generating full solution but don't stream more to user
             } else {
-              // Stream the full chunk
+              // Full access user - stream everything to user
               res.write(chunk);
-              if (isPartialResponse) {
-                partialContent += chunk;
-              }
               streamedLength += chunk.length;
             }
           }
@@ -3374,9 +3377,8 @@ Respond with the refined solution only:`;
           }
         }
 
-        // Clean the content to remove graph data markers
-        const responseToStore = isPartialResponse ? partialContent : fullContent;
-        const cleanedResponse = responseToStore.replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '').trim();
+        // ALWAYS store the complete solution in database
+        const cleanedResponse = fullContent.replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '').trim();
 
         // Generate graphs if needed and user has sufficient credits
         let graphImages: string[] | undefined = undefined;
