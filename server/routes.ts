@@ -2559,7 +2559,7 @@ Respond with the refined solution only:`;
         const estimatedTokens = Math.ceil(wordCount * 2); // Rough estimation
         
         // If daily usage would exceed limit, use partial content
-        if (dailyUsage.totalTokens + estimatedTokens > DAILY_TOKEN_LIMIT) {
+        if ((dailyUsage?.totalTokens || 0) + estimatedTokens > TOKEN_LIMITS.FREE_DAILY_LIMIT) {
           hasInsufficientCredits = true;
         }
       }

@@ -1348,7 +1348,7 @@ ${fullResponse.slice(-1000)}...`;
     <div class="section">
         <h2>Solution:</h2>
         ${currentResult.graphImages && currentResult.graphImages.length > 0 ? 
-          currentResult.graphImages.map(img => 
+          currentResult.graphImages.map((img: string) => 
             `<div style="text-align: center; margin: 20px 0;"><img src="data:image/png;base64,${img}" alt="Generated Graph" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; page-break-inside: avoid;" /></div>`
           ).join('') : ''}
         <div class="content">${renderedHTML}</div>

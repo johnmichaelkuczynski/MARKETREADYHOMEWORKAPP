@@ -312,20 +312,3 @@ export interface AIProviderConfig {
   model?: string;
 }
 
-export interface RewriteRequest {
-  inputText: string;
-  styleText?: string;
-  contentMixText?: string;
-  customInstructions?: string;
-  selectedPresets?: string[];
-  provider: string;
-  selectedChunkIds?: string[];
-  mixingMode?: 'style' | 'content' | 'both';
-}
-
-export interface RewriteResponse {
-  rewrittenText: string;
-  inputAiScore: number;
-  outputAiScore: number;
-  jobId: string;
-}
