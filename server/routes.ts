@@ -17,6 +17,7 @@ import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import { PDFDocument } from 'pdf-lib';
 import { authService } from './auth';
 import { countTokens, estimateOutputTokens, truncateResponse, TOKEN_LIMITS, generateSessionId, getTodayDate } from './tokenUtils';
+import { calculateCreditCost } from '@shared/pricing';
 import Stripe from 'stripe';
 import { createPaypalOrder, capturePaypalOrder, loadPaypalDefault } from "./paypal";
 import './types';
@@ -2592,10 +2593,14 @@ Respond with the refined solution only:`;
 
       const startTime = Date.now();
       
-      // Count tokens
+      // Count tokens and calculate word-based costs
       const inputTokens = countTokens(inputText);
       const estimatedOutputTokens = estimateOutputTokens(inputText);
       const totalTokens = inputTokens + estimatedOutputTokens;
+      
+      // Calculate word count and credit cost based on LLM provider
+      const wordCount = inputText.split(/\s+/).length;
+      const estimatedCreditCost = calculateCreditCost(llmProvider, wordCount);
       
       let actualSessionId = sessionId;
       let userId = req.session.userId;
@@ -2609,7 +2614,7 @@ Respond with the refined solution only:`;
         }
         
         // SPECIAL CASE: jmkuczynski and randyjohnson have unlimited access
-        if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < totalTokens) {
+        if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost) {
           return res.status(402).json({ 
             error: "🔒 You've used all your credits. [Buy More Credits]",
             needsUpgrade: true 
@@ -2641,14 +2646,18 @@ Respond with the refined solution only:`;
         const actualOutputTokens = countTokens(llmResult.response);
         const actualTotalTokens = inputTokens + actualOutputTokens;
         
+        // Calculate actual credit cost based on response word count and LLM provider
+        const responseWordCount = llmResult.response.split(/\s+/).length;
+        const actualCreditCost = calculateCreditCost(llmProvider, responseWordCount);
+        
         // SPECIAL CASE: Don't deduct tokens from jmkuczynski or randyjohnson
         if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson') {
           // Prevent negative balance - deduct only what the user can afford
           const currentBalance = user.tokenBalance || 0;
-          const newBalance = Math.max(0, currentBalance - actualTotalTokens);
+          const newBalance = Math.max(0, currentBalance - actualCreditCost);
           await storage.updateUserTokenBalance(userId, newBalance);
           
-          // Log token usage
+          // Log token usage with credit cost information
           await storage.createTokenUsage({
             userId,
             sessionId: null,
