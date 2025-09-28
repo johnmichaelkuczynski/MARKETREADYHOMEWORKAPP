@@ -961,11 +961,15 @@ ${fullResponse.slice(-1000)}...`;
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to process assignment";
       
-      // Check if it's a token-related error
-      if (errorMessage.includes("insufficient tokens") || errorMessage.includes("token")) {
+      // Check if it's a token/credit-related error
+      if (errorMessage.includes("insufficient tokens") || 
+          errorMessage.includes("token") || 
+          errorMessage.includes("credit") || 
+          errorMessage.includes("🔒") ||
+          errorMessage.includes("used all your")) {
         toast({
-          title: "Insufficient tokens",
-          description: "Please purchase more tokens to continue or register for an account",
+          title: "Insufficient Credits",
+          description: "You've used all your credits. Please purchase more to continue or register for an account.",
           variant: "destructive",
         });
       } else {
@@ -979,8 +983,8 @@ ${fullResponse.slice(-1000)}...`;
   });
 
   const textMutation = useMutation({
-    mutationFn: ({ text, provider }: { text: string; provider: string }) => {
-      return fetch('/api/process-text', {
+    mutationFn: async ({ text, provider }: { text: string; provider: string }) => {
+      const response = await fetch('/api/process-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -989,7 +993,15 @@ ${fullResponse.slice(-1000)}...`;
           llmProvider: provider,
           sessionId: sessionId
         }),
-      }).then(res => res.json());
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+      
+      return data;
     },
     onSuccess: (data) => {
       // Clean markdown from the response
@@ -1010,11 +1022,15 @@ ${fullResponse.slice(-1000)}...`;
     onError: (error: any) => {
       const errorMessage = error.message || "Failed to process assignment";
       
-      // Check if it's a token-related error
-      if (errorMessage.includes("insufficient tokens") || errorMessage.includes("token")) {
+      // Check if it's a token/credit-related error
+      if (errorMessage.includes("insufficient tokens") || 
+          errorMessage.includes("token") || 
+          errorMessage.includes("credit") || 
+          errorMessage.includes("🔒") ||
+          errorMessage.includes("used all your")) {
         toast({
-          title: "Insufficient tokens",
-          description: "Please purchase more tokens to continue or register for an account",
+          title: "Insufficient Credits",
+          description: "You've used all your credits. Please purchase more to continue or register for an account.",
           variant: "destructive",
         });
       } else {

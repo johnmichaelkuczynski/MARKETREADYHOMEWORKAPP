@@ -128,7 +128,7 @@ function detectContentType(text: string): 'math' | 'document' | 'general' {
   return 'general';
 }
 
-// Generate preview for freemium model
+// Generate preview for freemium model (25% content)
 function generatePreview(fullResponse: string): string {
   // Remove any existing graph data JSON from the end
   const lines = fullResponse.split('\n');
@@ -169,6 +169,47 @@ function generatePreview(fullResponse: string): string {
     const previewWords = words.slice(0, Math.ceil(words.length * 0.25)); // 25% of content
     
     return previewWords.join(' ') + '...\n\n**🔒 Complete answer available with credits**\n\n[Buy Credits with Stripe or PayPal to see the full detailed response]';
+  }
+}
+
+// Generate partial content for insufficient credits (50% content)
+function generatePartialContent(fullResponse: string): string {
+  // Remove any existing graph data JSON from the end
+  const lines = fullResponse.split('\n');
+  let contentLines = [...lines];
+  
+  // Remove graph data if present
+  const graphStartIndex = contentLines.findIndex(line => 
+    line.trim().startsWith('```json') || line.includes('GRAPH_DATA_START')
+  );
+  if (graphStartIndex !== -1) {
+    contentLines = contentLines.slice(0, graphStartIndex);
+  }
+  
+  const cleanResponse = contentLines.join('\n').trim();
+  
+  // For math problems: Show 50% of content
+  if (detectContentType(cleanResponse) === 'math') {
+    const words = cleanResponse.split(/\s+/);
+    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial solution (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete step-by-step solution]';
+  }
+  
+  // For documents: Show 50% of content  
+  else if (detectContentType(cleanResponse) === 'document') {
+    const words = cleanResponse.split(/\s+/);
+    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial analysis (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed analysis]';
+  }
+  
+  // For general questions: Show 50% of content
+  else {
+    const words = cleanResponse.split(/\s+/);
+    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial answer (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed response]';
   }
 }
 
@@ -2621,13 +2662,8 @@ Respond with the refined solution only:`;
           return res.status(404).json({ error: "User not found" });
         }
         
-        // SPECIAL CASE: jmkuczynski and randyjohnson have unlimited access
-        if (user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost) {
-          return res.status(402).json({ 
-            error: "🔒 You've used all your credits. [Buy More Credits]",
-            needsUpgrade: true 
-          });
-        }
+        // Check if user has sufficient credits
+        const hasInsufficientCredits = user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost;
         
         // Process with full response
         let llmResult: {response: string, graphData?: GraphRequest[]};
@@ -2713,14 +2749,20 @@ Respond with the refined solution only:`;
           outputTokens: actualOutputTokens,
         });
 
+        // Generate response based on credit availability
+        const finalResponse = hasInsufficientCredits 
+          ? generatePartialContent(llmResult.response)
+          : llmResult.response;
+
         const response: ProcessAssignmentResponse = {
           id: assignment.id,
           extractedText: inputText,
-          llmResponse: llmResult.response,
-          graphData: graphDataJsons,
-          graphImages: graphImages,
+          llmResponse: finalResponse,
+          graphData: hasInsufficientCredits ? undefined : graphDataJsons, // No graphs for partial content
+          graphImages: hasInsufficientCredits ? undefined : graphImages, // No graphs for partial content
           processingTime,
           success: true,
+          isPartial: hasInsufficientCredits // Add flag to indicate partial content
         };
 
         res.json(response);

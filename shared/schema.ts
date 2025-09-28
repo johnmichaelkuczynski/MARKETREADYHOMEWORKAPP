@@ -80,6 +80,7 @@ export const processAssignmentResponseSchema = z.object({
   processingTime: z.number(),
   success: z.boolean(),
   isPreview: z.boolean().optional(), // Flag for freemium preview mode
+  isPartial: z.boolean().optional(), // Flag for partial content due to insufficient credits
 });
 
 export type ProcessAssignmentResponse = z.infer<typeof processAssignmentResponseSchema>;
