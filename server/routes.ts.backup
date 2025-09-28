@@ -3254,14 +3254,8 @@ Respond with the refined solution only:`;
     }
   });
 
-
   // STREAMING ENDPOINT FOR REAL-TIME RESPONSE DELIVERY
-  // CRITICAL: Uses IDENTICAL paywall logic as non-streaming endpoint via FreemiumPaywall
   app.post("/api/process-text/stream", async (req, res) => {
-    const startTime = Date.now();
-    let userId: number | undefined;
-    let user: any = null;
-    
     try {
       const { inputText, llmProvider, sessionId } = processAssignmentSchema.parse(req.body);
 
@@ -3269,128 +3263,104 @@ Respond with the refined solution only:`;
         return res.status(400).json({ error: "Input text is required" });
       }
 
-      // Set up chunked streaming response with paywall headers
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader("Transfer-Encoding", "chunked");
-      res.setHeader("Cache-Control", "no-cache");
+      // Set up chunked streaming response
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache');
+
+      const startTime = Date.now();
       
       // Count tokens and calculate word-based costs
       const inputTokens = countTokens(inputText);
       const estimatedOutputTokens = estimateOutputTokens(inputText);
+      const wordCount = inputText.split(/\s+/).length;
+      const estimatedCreditCost = calculateCreditCost(llmProvider, wordCount);
       
       let actualSessionId = sessionId;
-      userId = req.session.userId;
-      let fullContent = "";
+      let userId = req.session.userId;
+      let fullContent = '';
+      let partialContent = '';
+      let isPartialResponse = false;
+      let maxStreamLength = estimatedOutputTokens * 4; // Approximate character limit
 
-      // FAIL-CLOSED: Get user safely, default to anonymous if any error
-      try {
-        if (userId) {
-          user = await authService.getUserById(userId);
-          if (!user) {
-            console.log(`STREAM PAYWALL: User ${userId} not found - treating as anonymous`);
-            userId = undefined;
-          }
+      // Determine if user has sufficient credits
+      if (userId) {
+        const user = await authService.getUserById(userId);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
         }
-      } catch (error) {
-        console.error("STREAM PAYWALL: Error fetching user - treating as anonymous:", error);
-        userId = undefined;
-        user = null;
-      }
-      
-      // Handle session for anonymous users
-      if (!userId && !actualSessionId) {
-        actualSessionId = generateSessionId();
+        
+        // Check if user has insufficient credits (30% partial delivery)
+        const hasInsufficientCredits = user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost;
+        
+        if (hasInsufficientCredits) {
+          isPartialResponse = true;
+          // Limit to 30% of estimated output for partial responses
+          maxStreamLength = Math.ceil(estimatedOutputTokens * 4 * 0.3);
+        }
+      } else {
+        // Free user - always partial (30%)
+        if (!actualSessionId) {
+          actualSessionId = generateSessionId();
+        }
+        isPartialResponse = true;
+        maxStreamLength = Math.ceil(estimatedOutputTokens * 4 * 0.3);
       }
 
-      // FAIL-CLOSED: Get streaming function safely
+      // Get the appropriate streaming function
       let streamFunction: AsyncGenerator<string, void, unknown>;
-      try {
-        switch (llmProvider) {
-          case "anthropic":
-            streamFunction = streamWithAnthropic(inputText);
-            break;
-          case "openai":
-            streamFunction = streamWithOpenAI(inputText);
-            break;
-          case "deepseek":
-            streamFunction = streamWithDeepSeek(inputText);
-            break;
-          default:
-            throw new Error(`Unsupported LLM provider for streaming: ${llmProvider}`);
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Unknown streaming error";
-        res.write(`\n[STREAM_DONE]{"error":"${errorMsg}"}`);
-        return res.end();
+      switch (llmProvider) {
+        case 'anthropic':
+          streamFunction = streamWithAnthropic(inputText);
+          break;
+        case 'openai':
+          streamFunction = streamWithOpenAI(inputText);
+          break;
+        case 'deepseek':
+          streamFunction = streamWithDeepSeek(inputText);
+          break;
+        default:
+          res.write(`\n[STREAM_DONE]{"error":"Unsupported LLM provider for streaming: ${llmProvider}"}`);
+          return res.end();
       }
 
-      // STEP 1: ALWAYS generate the complete solution server-side
+      let streamedLength = 0;
+      let graphData: GraphRequest[] = [];
+
       try {
+        // ALWAYS generate the complete solution first
         for await (const chunk of streamFunction) {
           if (chunk) {
             fullContent += chunk;
+            
+            // For partial responses, limit what gets streamed to user but continue generation
+            if (isPartialResponse) {
+              // Only stream to user if we haven't hit the 30% limit yet
+              if (streamedLength + chunk.length < maxStreamLength) {
+                // Stream the full chunk to user
+                res.write(chunk);
+                partialContent += chunk;
+                streamedLength += chunk.length;
+              } else if (streamedLength < maxStreamLength) {
+                // Stream only the remaining allowed portion to user
+                const remainingChars = maxStreamLength - streamedLength;
+                const partialChunk = chunk.substring(0, remainingChars);
+                res.write(partialChunk);
+                partialContent += partialChunk;
+                streamedLength = maxStreamLength; // Cap at limit
+              }
+              // Continue generating full solution but don't stream more to user
+            } else {
+              // Full access user - stream everything to user
+              res.write(chunk);
+              streamedLength += chunk.length;
+            }
           }
         }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Content generation failed";
-        console.error("STREAM: Content generation error:", error);
-        res.write(`\n[STREAM_DONE]{"error":"${errorMsg}"}`);
-        return res.end();
-      }
-      
-      // FAIL-CLOSED: If no content generated, return error
-      if (!fullContent.trim()) {
-        res.write(`\n[STREAM_DONE]{"error":"No content generated"}`);
-        return res.end();
-      }
 
-      // STEP 2: Use centralized paywall logic to determine access level
-      const paywallResponse = FreemiumPaywall.processContent({
-        userId: userId?.toString(),
-        user,
-        fullContent,
-        estimatedTokens: estimatedOutputTokens,
-        endpoint: "/api/process-text/stream"
-      });
-
-      // STEP 3: Set paywall headers
-      Object.entries(paywallResponse.headers).forEach(([key, value]) => {
-        res.setHeader(key, value);
-      });
-
-      // STEP 4: Stream content progressively with paywall enforcement
-      const contentToStream = FreemiumPaywall.getUserContent(paywallResponse);
-      const maxBytes = contentToStream.length; // Enforce the paywall limit
-      let streamedBytes = 0;
-      
-      // PROGRESSIVE STREAMING with paywall enforcement
-      const words = contentToStream.split(' ');
-      for (const word of words) {
-        const chunk = (streamedBytes === 0 ? word : ' ' + word);
-        
-        // FAIL-CLOSED: Stop streaming if we hit the paywall limit
-        if (streamedBytes + chunk.length > maxBytes) {
-          break;
-        }
-        
-        res.write(chunk);
-        streamedBytes += chunk.length;
-        
-        // Simulate real-time streaming delay (can be removed for faster responses)
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      
-      // AUDIT LOG: Record the streaming activity
-      console.log(`PAYWALL AUDIT: userId=${userId || 'anonymous'}, endpoint=/api/process-text/stream, isPreview=${paywallResponse.isPreview}, percent=${paywallResponse.previewPercent}, originalBytes=${fullContent.length}, sentBytes=${streamedBytes}, assignmentId=pending`);
-
-      // STEP 5: Process graphs (only for full access users)
-      let graphData: any[] = [];
-      let graphImages: string[] | undefined = undefined;
-      let graphDataJsons: string[] | undefined = undefined;
-      
-      if (!paywallResponse.isPreview) {
+        // Extract graph data if present in full content
         const needsGraph = detectGraphRequirements(inputText);
-        if (needsGraph && fullContent.includes("GRAPH_DATA_START")) {
+        if (needsGraph && fullContent.includes('GRAPH_DATA_START')) {
           try {
             const graphRegex = /GRAPH_DATA_START([\s\S]*?)GRAPH_DATA_END/g;
             let match;
@@ -3400,86 +3370,85 @@ Respond with the refined solution only:`;
                 const parsedGraph = JSON.parse(graphJson);
                 graphData.push(parsedGraph);
               } catch (error) {
-                console.error("Failed to parse individual graph data:", error);
-              }
-            }
-            
-            if (graphData.length > 0) {
-              graphImages = [];
-              graphDataJsons = [];
-              
-              for (const graph of graphData) {
-                try {
-                  const graphImage = await generateGraph(graph);
-                  graphImages.push(graphImage);
-                  graphDataJsons.push(JSON.stringify(graph));
-                } catch (error) {
-                  console.error("Graph generation error:", error);
-                }
+                console.error('Failed to parse individual graph data:', error);
               }
             }
           } catch (error) {
-            console.error("Failed to parse graph data:", error);
-          }
-        }
-      }
-
-      // STEP 6: Store in database (content based on paywall decision)
-      const storageContent = FreemiumPaywall.getStorageContent(paywallResponse);
-      const cleanedResponse = storageContent.replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, "").trim();
-      const processingTime = Date.now() - startTime;
-      const outputTokens = countTokens(cleanedResponse);
-      const wordCount = cleanedResponse.split(/\s+/).length;
-      const actualCreditCost = calculateCreditCost(llmProvider, wordCount);
-
-      try {
-        const assignment = await storage.createAssignment({
-          userId: userId || null,
-          sessionId: actualSessionId,
-          inputText,
-          inputType: "text",
-          fileName: null,
-          extractedText: null,
-          llmProvider,
-          llmResponse: cleanedResponse,
-          graphData: graphDataJsons,
-          graphImages: graphImages,
-          processingTime,
-          inputTokens,
-          outputTokens,
-        });
-
-        // STEP 7: Deduct credits only for full access users
-        if (userId && !paywallResponse.isPreview) {
-          const currentUser = await authService.getUserById(userId);
-          if (currentUser && currentUser.username !== "jmkuczynski" && currentUser.username !== "randyjohnson") {
-            const newBalance = Math.max(0, (currentUser.tokenBalance || 0) - actualCreditCost);
-            await authService.updateUserTokenBalance(userId, newBalance);
+            console.error('Failed to parse graph data:', error);
           }
         }
 
-        // UPDATE AUDIT LOG with assignment ID
-        console.log(`PAYWALL AUDIT FINAL: userId=${userId || 'anonymous'}, endpoint=/api/process-text/stream, isPreview=${paywallResponse.isPreview}, percent=${paywallResponse.previewPercent}, originalBytes=${fullContent.length}, sentBytes=${streamedBytes}, assignmentId=${assignment.id}, creditCost=${actualCreditCost}, stored=${cleanedResponse.length}chars`);
+        // ALWAYS store the complete solution in database
+        const cleanedResponse = fullContent.replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '').trim();
 
-        // STEP 8: Send completion metadata with paywall info
-        res.write(`\n[STREAM_DONE]${JSON.stringify({
-          partial: paywallResponse.isPreview,
-          error: null,
-          assignmentId: assignment.id,
-          graphData: graphDataJsons,
-          graphImages: graphImages,
-          processingTime,
-          success: true,
-          previewPercent: paywallResponse.previewPercent,
-          isPreview: paywallResponse.isPreview,
-          streamedBytes: streamedBytes,
-          storedBytes: cleanedResponse.length
-        })}`);
+        // Generate graphs if needed and user has sufficient credits
+        let graphImages: string[] | undefined = undefined;
+        let graphDataJsons: string[] | undefined = undefined;
+        
+        if (!isPartialResponse && graphData.length > 0) {
+          graphImages = [];
+          graphDataJsons = [];
+          
+          try {
+            for (const graph of graphData) {
+              const graphImage = await generateGraph(graph);
+              graphImages.push(graphImage);
+              graphDataJsons.push(JSON.stringify(graph));
+            }
+          } catch (error) {
+            console.error('Graph generation error:', error);
+          }
+        }
 
-      } catch (dbError) {
-        console.error("Database error during streaming:", dbError);
-        // FAIL-CLOSED: Database error defaults to preview response
-        res.write(`\n[STREAM_DONE]{"error":"Failed to save assignment","partial":true,"isPreview":true}`);
+        const processingTime = Date.now() - startTime;
+        const outputTokens = countTokens(cleanedResponse);
+        const actualCreditCost = calculateCreditCost(llmProvider, cleanedResponse.split(/\s+/).length);
+
+        // Store assignment in database
+        try {
+          const assignment = await storage.createAssignment({
+            userId: userId || null,
+            sessionId: actualSessionId,
+            inputText,
+            inputType: 'text',
+            fileName: null,
+            extractedText: null,
+            llmProvider,
+            llmResponse: cleanedResponse,
+            graphData: graphDataJsons,
+            graphImages: graphImages,
+            processingTime,
+            inputTokens,
+            outputTokens,
+          });
+
+          // Deduct credits for registered users with sufficient balance
+          if (userId && !isPartialResponse) {
+            const user = await authService.getUserById(userId);
+            if (user && user.username !== 'jmkuczynski' && user.username !== 'randyjohnson') {
+              const newBalance = Math.max(0, (user.tokenBalance || 0) - actualCreditCost);
+              await authService.updateUserTokenBalance(userId, newBalance);
+            }
+          }
+
+          // Send completion metadata
+          res.write(`\n[STREAM_DONE]${JSON.stringify({
+            partial: isPartialResponse,
+            error: null,
+            assignmentId: assignment.id,
+            graphData: graphDataJsons,
+            graphImages: graphImages,
+            processingTime,
+            success: true
+          })}`);
+        } catch (dbError) {
+          console.error('Database error during streaming:', dbError);
+          res.write(`\n[STREAM_DONE]{"error":"Failed to save assignment","partial":${isPartialResponse}}`);
+        }
+
+      } catch (streamError) {
+        console.error('Streaming error:', streamError);
+        res.write(`\n[STREAM_DONE]{"error":"${streamError instanceof Error ? streamError.message : 'Streaming failed'}","partial":${isPartialResponse}}`);
       }
 
       res.end();
@@ -3489,17 +3458,10 @@ Respond with the refined solution only:`;
         return res.status(400).json({ error: "Invalid request data", details: error.errors });
       }
       
-      console.error("Streaming endpoint error:", error);
-      // FAIL-CLOSED: Any unexpected error defaults to preview-only, never full content
-      try {
-        res.write(`\n[STREAM_DONE]{"error":"Streaming failed","partial":true,"isPreview":true}`);
-        res.end();
-      } catch (writeError) {
-        // If we can't even write the error response, fall back to HTTP error
-        res.status(500).json({ 
-          error: "Failed to start streaming" 
-        });
-      }
+      console.error('Streaming endpoint error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to start streaming" 
+      });
     }
   });
 
