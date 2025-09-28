@@ -243,7 +243,12 @@ export default function HomeworkAssistant() {
   };
 
   // Function to clean markdown formatting from text
-  const cleanMarkdown = (text: string) => {
+  const cleanMarkdown = (text: string | undefined | null) => {
+    // Handle undefined/null values safely
+    if (!text || typeof text !== 'string') {
+      return '';
+    }
+    
     return text
       .replace(/#{1,6}\s*/g, '') // Remove all header markers (# ## ### etc)
       .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
@@ -656,7 +661,7 @@ export default function HomeworkAssistant() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${(currentAssignmentName || 'Assignment Solution').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+    <title>${((currentAssignmentName || 'Assignment Solution') + '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
     
     <!-- MathJax Configuration for Print -->
     <script>
@@ -762,12 +767,12 @@ export default function HomeworkAssistant() {
     </style>
 </head>
 <body>
-    <h1>${(currentAssignmentName || 'Assignment Solution').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h1>
+    <h1>${((currentAssignmentName || 'Assignment Solution') + '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h1>
     
     ${currentResult.extractedText ? `
     <div class="problem-section">
         <h2>Problem Statement</h2>
-        <p>${currentResult.extractedText.replace(/\n/g, '<br>').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+        <p>${(currentResult.extractedText || '').replace(/\n/g, '<br>').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
     </div>
     ` : ''}
     

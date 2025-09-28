@@ -22,14 +22,16 @@ export function estimateOutputTokens(inputText: string): number {
 }
 
 export function truncateResponse(response: string, maxTokens: number): string {
+  // Ensure response is a string, default to empty if undefined/null
+  const safeResponse = typeof response === 'string' ? response : '';
   const targetLength = maxTokens * 4; // Approximate characters
   
-  if (response.length <= targetLength) {
-    return response;
+  if (safeResponse.length <= targetLength) {
+    return safeResponse;
   }
   
   // Try to break at a natural point (sentence end)
-  const truncated = response.substring(0, targetLength);
+  const truncated = safeResponse.substring(0, targetLength);
   const lastPeriod = truncated.lastIndexOf('.');
   const lastNewline = truncated.lastIndexOf('\n');
   

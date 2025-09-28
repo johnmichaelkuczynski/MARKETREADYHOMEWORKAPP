@@ -71,7 +71,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-06-20'
+  apiVersion: '2025-06-30.basil'
 });
 
 // DeepSeek processing function
@@ -352,7 +352,8 @@ Generate realistic data points based on the scientific/mathematical principles i
     }
 
     // Clean the response to remove graph data markers
-    const cleanedResponse = responseText
+    const safeResponseText = typeof responseText === 'string' ? responseText : '';
+    const cleanedResponse = safeResponseText
       .replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '')
       .trim();
 
@@ -539,7 +540,10 @@ async function extractTextFromWord(buffer: Buffer): Promise<string> {
 
 // Helper function to clean HTML and formatting from text
 function cleanResponse(text: string): string {
-  return text
+  // Ensure text is a string, default to empty if undefined/null
+  const safeText = typeof text === 'string' ? text : '';
+  
+  return safeText
     // Remove HTML tags
     .replace(/<[^>]*>/g, '')
     // Remove markdown formatting
@@ -862,7 +866,8 @@ Generate realistic data points based on the scientific/mathematical principles i
     }
 
     // Clean the response to remove graph data markers
-    const cleanedResponse = response
+    const safeResponse = typeof response === 'string' ? response : '';
+    const cleanedResponse = safeResponse
       .replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '')
       .trim();
 
@@ -1038,7 +1043,8 @@ Generate realistic data points based on the scientific/mathematical principles i
     }
 
     // Clean the response to remove graph data markers
-    const cleanedResponse = responseText
+    const safeResponseText = typeof responseText === 'string' ? responseText : '';
+    const cleanedResponse = safeResponseText
       .replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '')
       .trim();
 
@@ -1166,7 +1172,8 @@ Generate realistic data points based on the scientific/mathematical principles i
     }
 
     // Clean the response to remove graph data markers
-    const cleanedResponse = responseText
+    const safeResponseText = typeof responseText === 'string' ? responseText : '';
+    const cleanedResponse = safeResponseText
       .replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '')
       .trim();
 
@@ -1363,7 +1370,8 @@ Generate realistic data points based on the scientific/mathematical principles i
     }
 
     // Clean the response to remove graph data markers
-    const cleanedResponse = responseText
+    const safeResponseText = typeof responseText === 'string' ? responseText : '';
+    const cleanedResponse = safeResponseText
       .replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '')
       .trim();
 
