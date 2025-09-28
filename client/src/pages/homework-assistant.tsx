@@ -60,11 +60,6 @@ export default function HomeworkAssistant() {
   const [isAnalyzingSolution, setIsAnalyzingSolution] = useState(false);
   const [inputAiScore, setInputAiScore] = useState<number | null>(null);
   const [isAnalyzingInput, setIsAnalyzingInput] = useState(false);
-  
-  // Streaming state management
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState("");
-  const [streamingStatus, setStreamingStatus] = useState("");
 
   // Authentication and session management
   const { user, isAuthenticated } = useAuth();
@@ -1056,8 +1051,7 @@ ${fullResponse.slice(-1000)}...`;
     }
   };
 
-  // Streaming processing function
-  const handleProcessTextStreaming = async () => {
+  const handleProcessText = async () => {
     if (!inputText.trim()) {
       toast({
         title: "No content to process",
@@ -1067,96 +1061,6 @@ ${fullResponse.slice(-1000)}...`;
       return;
     }
 
-    const textToProcess = specialInstructions.trim() 
-      ? `${inputText}\n\nSpecial Instructions: ${specialInstructions}`
-      : inputText;
-
-    setIsStreaming(true);
-    setStreamingContent("");
-    setStreamingStatus("Starting processing...");
-    setCurrentResult(null);
-
-    try {
-      const eventSource = new EventSource('/api/process-text-stream', {
-        // EventSource doesn't support POST, so we'll use fetch with streaming
-      });
-
-      // Use fetch for POST with streaming instead
-      const response = await fetch('/api/process-text-stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-        body: JSON.stringify({
-          inputText: textToProcess,
-          llmProvider: selectedProvider,
-          sessionId: sessionId
-        }),
-      });
-
-      if (!response.body) {
-        throw new Error('Streaming not supported');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'status') {
-                setStreamingStatus(data.message);
-              } else if (data.type === 'chunk') {
-                accumulatedContent += data.content;
-                setStreamingContent(accumulatedContent);
-              } else if (data.type === 'complete') {
-                setCurrentResult(data.data);
-                calculateWordCount(data.data.llmResponse);
-                if (data.data.llmResponse) {
-                  analyzeSolutionAI(data.data.llmResponse);
-                }
-                toast({
-                  title: "Solution generated!",
-                  description: `Completed with ${selectedProvider}`,
-                });
-                break;
-              } else if (data.type === 'error') {
-                throw new Error(data.message);
-              }
-            } catch (parseError) {
-              console.error('Error parsing streaming data:', parseError);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Streaming failed:', error);
-      toast({
-        title: "Streaming failed",
-        description: "Falling back to regular processing...",
-        variant: "destructive",
-      });
-      // Fallback to regular processing
-      await handleProcessTextRegular();
-    } finally {
-      setIsStreaming(false);
-      setStreamingStatus("");
-    }
-  };
-
-  // Regular non-streaming processing function (fallback)
-  const handleProcessTextRegular = async () => {
     const textToProcess = specialInstructions.trim() 
       ? `${inputText}\n\nSpecial Instructions: ${specialInstructions}`
       : inputText;
@@ -1170,26 +1074,7 @@ ${fullResponse.slice(-1000)}...`;
     }
   };
 
-  // Main processing function - uses streaming by default
-  const handleProcessText = async () => {
-    if (!inputText.trim()) {
-      toast({
-        title: "No content to process",
-        description: "Please enter some text or upload a file",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Use streaming if user is authenticated, otherwise use regular processing
-    if (user) {
-      await handleProcessTextStreaming();
-    } else {
-      await handleProcessTextRegular();
-    }
-  };
-
-  const isProcessing = uploadMutation.isPending || textMutation.isPending || isChunkedProcessing || isStreaming;
+  const isProcessing = uploadMutation.isPending || textMutation.isPending || isChunkedProcessing;
 
   // Listen for payment success events to refresh solution
   useEffect(() => {
@@ -2276,19 +2161,8 @@ ${fullResponse.slice(-1000)}...`;
                                   </Badge>
                                 )}
                               </div>
-                              
-                              {/* Show streaming status when streaming */}
-                              {isStreaming && streamingStatus && (
-                                <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                    <span className="text-sm font-medium text-blue-700">{streamingStatus}</span>
-                                  </div>
-                                </div>
-                              )}
-                              
                               <MathRenderer 
-                                content={isStreaming && streamingContent ? streamingContent : currentResult.llmResponse}
+                                content={currentResult.llmResponse}
                                 className="space-y-4 math-content leading-relaxed"
                               />
                             </div>
@@ -2302,18 +2176,8 @@ ${fullResponse.slice(-1000)}...`;
                                   </Badge>
                                 )}
                               </div>
-                              {/* Show streaming status when streaming */}
-                              {isStreaming && streamingStatus && (
-                                <div className="mb-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
-                                    <span className="text-sm font-medium text-orange-700">{streamingStatus}</span>
-                                  </div>
-                                </div>
-                              )}
-                              
                               <pre className="whitespace-pre-wrap text-sm font-mono text-slate-800 leading-relaxed bg-white p-4 rounded-lg border border-orange-200 overflow-x-auto">
-                                {isStreaming && streamingContent ? streamingContent : currentResult.llmResponse}
+                                {currentResult.llmResponse}
                               </pre>
                             </div>
                           )}
