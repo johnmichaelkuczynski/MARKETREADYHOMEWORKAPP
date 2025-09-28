@@ -13,8 +13,8 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
   let event;
   
   try {
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      console.error('[STRIPE WEBHOOK] STRIPE_WEBHOOK_SECRET environment variable is required');
+    if (!process.env.STRIPE_WEBHOOK_SECRET_HOMEWORKHELPER) {
+      console.error('[STRIPE WEBHOOK] STRIPE_WEBHOOK_SECRET_HOMEWORKHELPER environment variable is required');
       return res.status(500).json({ error: 'Webhook not configured' });
     }
     
@@ -24,7 +24,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
       apiVersion: '2024-06-20'
     });
     
-    event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET_HOMEWORKHELPER!);
     console.log(`[STRIPE WEBHOOK] Verified event: ${event.type} for ${event.id}`);
   } catch (err: any) {
     console.error("[STRIPE WEBHOOK] Signature verification failed:", err.message);
@@ -165,7 +165,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
 app.get("/__diag/pay", async (req, res) => {
   try {
     const liveKey = (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_live_");
-    const wh = !!process.env.STRIPE_WEBHOOK_SECRET;
+    const wh = !!process.env.STRIPE_WEBHOOK_SECRET_HOMEWORKHELPER;
     res.json({ liveKey, webhookSecretSet: wh, base: process.env.PUBLIC_BASE_URL || null });
   } catch(e: any) { 
     res.status(500).json({error: e.message}); 
