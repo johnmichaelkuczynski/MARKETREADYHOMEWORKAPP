@@ -49,13 +49,10 @@ const PRESET_TEXT: Record<string,string> = {
   "Hedge once": "Use exactly one hedge: probably/roughly/more or less.",
   "Drop intensifiers": "Remove 'very/clearly/obviously/significantly'.",
   "Low-heat voice": "Prefer plain verbs; avoid showy synonyms.",
-  "One aside": "Allow one short parenthetical or em-dash aside; strictly factual.",
   "Concrete benchmark": "Replace one vague scale with a testable one (e.g., 'enough to X').",
   "Swap generic example": "If the source has an example, make it slightly more specific; else skip.",
   "Metric nudge": "Replace 'more/better' with a minimal, source-safe comparator (e.g., 'more than last case').",
-  "Asymmetric emphasis": "Linger on the main claim; compress secondary points sharply.",
   "Cull repeats": "Delete duplicated sentences/ideas; keep the strongest instance.",
-  "Topic snap": "Allow one abrupt focus change; no recap.",
   "No lists": "Output as continuous prose; remove bullets/numbering.",
   "No meta": "No prefaces/apologies/phrases like 'as requested'.",
   "Exact nouns": "Replace ambiguous pronouns with exact nouns.",
@@ -290,8 +287,10 @@ export class AIProviderService {
         temperature: 0.7,
       });
 
-      console.log("🔥 Anthropic response received, length:", response.content[0].text?.length || 0);
-      return this.cleanMarkup(response.content[0].text || "");
+      const firstContent = response.content[0];
+      const responseText = firstContent.type === 'text' ? firstContent.text : '';
+      console.log("🔥 Anthropic response received, length:", responseText.length);
+      return this.cleanMarkup(responseText);
     } catch (error: any) {
       console.error("🔥 ANTHROPIC API ERROR:", error);
       throw new Error(`Anthropic API error: ${error.message}`);
@@ -334,7 +333,7 @@ export class AIProviderService {
       const data = await response.json();
       return this.cleanMarkup(data.choices[0].message.content || "");
     } catch (error) {
-      throw new Error(`Perplexity API error: ${error.message}`);
+      throw new Error(`Perplexity API error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -372,7 +371,7 @@ export class AIProviderService {
       const data = await response.json();
       return this.cleanMarkup(data.choices[0].message.content || "");
     } catch (error) {
-      throw new Error(`DeepSeek API error: ${error.message}`);
+      throw new Error(`DeepSeek API error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -400,8 +399,8 @@ export class AIProviderService {
             throw new Error(`Unsupported provider: ${currentProvider}`);
         }
       } catch (error) {
-        console.log(`Provider ${currentProvider} failed:`, error.message);
-        lastError = error;
+        console.log(`Provider ${currentProvider} failed:`, error instanceof Error ? error.message : String(error));
+        lastError = error instanceof Error ? error : new Error(String(error));
         
         // If this is the last provider, throw the error
         if (currentProvider === uniqueProviders[uniqueProviders.length - 1]) {
@@ -435,6 +434,109 @@ export class AIProviderService {
       // Remove excessive whitespace and clean up
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+  }
+}
+
+// STREAMING FUNCTIONS FOR REAL-TIME RESPONSE DELIVERY
+export async function* streamWithAnthropic(inputText: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const response = await anthropic.messages.stream({
+      model: DEFAULT_ANTHROPIC_MODEL,
+      messages: [{ role: "user", content: inputText }],
+      max_tokens: 4000,
+      temperature: 0.7,
+    });
+
+    for await (const chunk of response) {
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        yield chunk.delta.text;
+      }
+    }
+  } catch (error) {
+    console.error('Anthropic streaming error:', error instanceof Error ? error.message : String(error));
+    return;
+  }
+}
+
+export async function* streamWithOpenAI(inputText: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: DEFAULT_OPENAI_MODEL,
+      messages: [{ role: "user", content: inputText }],
+      max_tokens: 4000,
+      temperature: 0.7,
+      stream: true,
+    });
+
+    for await (const chunk of response) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        yield content;
+      }
+    }
+  } catch (error) {
+    console.error('OpenAI streaming error:', error instanceof Error ? error.message : String(error));
+    return;
+  }
+}
+
+export async function* streamWithDeepSeek(inputText: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: inputText }],
+        temperature: 0.7,
+        max_tokens: 4000,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`DeepSeek API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Failed to get response reader');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              yield content;
+            }
+          } catch (error) {
+            // Skip malformed JSON
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('DeepSeek streaming error:', error instanceof Error ? error.message : String(error));
+    return;
   }
 }
 

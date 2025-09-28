@@ -23,7 +23,7 @@ import { createPaypalOrder, capturePaypalOrder, loadPaypalDefault } from "./payp
 import './types';
 
 // GPT BYPASS service imports
-import { aiProviderService } from './services/aiProviders';
+import { aiProviderService, streamWithAnthropic, streamWithOpenAI, streamWithDeepSeek } from './services/aiProviders';
 import { gptZeroService } from './services/gptZero';
 import { fileProcessorService } from './services/fileProcessor';
 import { textChunkerService } from './services/textChunker';

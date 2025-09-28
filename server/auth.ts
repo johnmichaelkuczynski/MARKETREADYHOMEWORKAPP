@@ -49,6 +49,10 @@ export class AuthService {
   async getUserById(id: number): Promise<User | undefined> {
     return storage.getUserById(id);
   }
+
+  async updateUserTokenBalance(userId: number, newBalance: number): Promise<void> {
+    return storage.updateUserTokenBalance(userId, newBalance);
+  }
 }
 
 export const authService = new AuthService();
