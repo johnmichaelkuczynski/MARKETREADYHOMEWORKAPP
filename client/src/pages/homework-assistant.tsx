@@ -20,6 +20,7 @@ import { AuthDialog } from "@/components/ui/auth-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useSession } from "@/hooks/use-session";
 import GPTBypassSection from "@/components/GPTBypassSection";
+import { LLM_PROVIDERS, formatPricingDisplay } from "@shared/pricing";
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 
@@ -1490,15 +1491,34 @@ ${fullResponse.slice(-1000)}...`;
                 New Assignment
               </Button>
               <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-64">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="anthropic">ZHI 1</SelectItem>
-                  <SelectItem value="openai">ZHI 2</SelectItem>
-                  <SelectItem value="deepseek">ZHI 3 (Default)</SelectItem>
-                  <SelectItem value="perplexity">ZHI 4</SelectItem>
-                  <SelectItem value="azure">ZHI 5</SelectItem>
+                  <SelectItem value="anthropic">
+                    <div className="flex flex-col">
+                      <span className="font-medium">ZHI 1 (Default)</span>
+                      <span className="text-xs text-muted-foreground">{formatPricingDisplay(LLM_PROVIDERS.anthropic)}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="openai">
+                    <div className="flex flex-col">
+                      <span className="font-medium">ZHI 2</span>
+                      <span className="text-xs text-muted-foreground">{formatPricingDisplay(LLM_PROVIDERS.openai)}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="deepseek">
+                    <div className="flex flex-col">
+                      <span className="font-medium">ZHI 3</span>
+                      <span className="text-xs text-muted-foreground">{formatPricingDisplay(LLM_PROVIDERS.deepseek)}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="perplexity">
+                    <div className="flex flex-col">
+                      <span className="font-medium">ZHI 4</span>
+                      <span className="text-xs text-muted-foreground">{formatPricingDisplay(LLM_PROVIDERS.perplexity)}</span>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
