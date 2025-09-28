@@ -923,6 +923,376 @@ Generate realistic data points based on the scientific/mathematical principles i
   }
 }
 
+// STREAMING VERSIONS FOR REAL-TIME RESPONSE DELIVERY
+
+async function* streamWithAnthropic(text: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const contentType = detectContentType(text);
+    const needsGraph = detectGraphRequirements(text);
+    
+    let prompt = '';
+    
+    if (contentType === 'document') {
+      prompt = `You are an expert academic assistant specializing in document analysis and summarization.
+
+CRITICAL FORMATTING REQUIREMENTS:
+- NEVER write paragraphs longer than 4-5 sentences
+- Use proper paragraph breaks with double line breaks
+- Structure with clear headings and subheadings
+- Use bullet points and numbered lists where appropriate
+- Break up dense text into readable chunks
+- Each paragraph should focus on ONE main idea
+
+Your task is to provide a comprehensive, well-structured analysis of the given text. Follow these guidelines:
+
+1. **Structure your response clearly** with proper headings and sections
+2. **Break content into short, readable paragraphs** (maximum 4-5 sentences each)  
+3. **Use headings, subheadings, bullet points, and lists** to organize information
+4. **Provide substantive analysis** - don't just reformat the text
+5. **Identify key concepts, arguments, and themes**
+6. **Use proper academic writing style** with clear transitions
+7. **Include specific examples and quotes** from the text when relevant
+8. **Focus on meaning and significance** rather than just listing information
+
+FORMAT REQUIREMENTS:
+- Use # for main headings
+- Use ## for subheadings  
+- Use - for bullet points
+- Use numbered lists for sequential information
+- Separate paragraphs with double line breaks
+- Keep paragraphs SHORT and focused
+
+If this is a request for summary, provide:
+- Main thesis or central argument
+- Key supporting points
+- Important concepts and terminology
+- Logical flow of the argument
+- Conclusions or implications
+
+If this is a request for analysis, provide:
+- Critical examination of arguments
+- Strengths and weaknesses
+- Connections to broader themes
+- Your scholarly assessment
+
+Text to analyze:`;
+    } else if (contentType === 'math') {
+      prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
+
+Solve this homework assignment with these MANDATORY requirements:
+1. ALL mathematical expressions MUST use proper LaTeX notation
+2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
+3. Use $$ for display equations: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+4. Include every mathematical step with perfect LaTeX formatting
+5. Use correct LaTeX for: fractions $\\frac{a}{b}$, exponents $x^n$, roots $\\sqrt{x}$, integrals $\\int_a^b f(x)dx$, summations $\\sum_{i=1}^n$, limits $\\lim_{x \\to 0}$, derivatives $\\frac{d}{dx}$, partial derivatives $\\frac{\\partial}{\\partial x}$
+6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
+7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
+8. Never use plain text for any mathematical symbol, number, or expression
+
+Assignment to solve:`;
+    } else {
+      // General content - no forced LaTeX
+      prompt = `You are a helpful academic assistant. Please provide a clear, well-structured response to the following request.
+
+For writing tasks:
+- Focus on clarity and good organization
+- Use proper academic writing style
+- Structure your response with appropriate headings if needed
+- Write in a natural, engaging manner
+
+For general questions:
+- Provide comprehensive yet concise answers
+- Use examples when helpful
+- Organize information logically
+
+Request:`;
+    }
+
+    if (needsGraph) {
+      prompt += `
+
+ADDITIONAL GRAPH REQUIREMENT:
+This assignment may require one or more graphs/plots. After solving the problem, you MUST provide graph data for EACH required graph in this EXACT JSON format at the very end of your response:
+
+For each graph needed:
+GRAPH_DATA_START
+{
+  "type": "line|bar|scatter",
+  "title": "Graph Title",
+  "xLabel": "X-axis Label", 
+  "yLabel": "Y-axis Label",
+  "data": [
+    {"x": value1, "y": value1},
+    {"x": value2, "y": value2}
+  ],
+  "description": "Brief description of what the graph shows"
+}
+GRAPH_DATA_END
+
+If multiple graphs are needed, provide multiple GRAPH_DATA_START...GRAPH_DATA_END blocks.
+Generate realistic data points based on the scientific/mathematical principles in the assignment.`;
+    }
+
+    prompt += `\n\n${text}`;
+
+    const stream = await anthropic.messages.create({
+      max_tokens: 4000,
+      messages: [{ 
+        role: 'user', 
+        content: prompt
+      }],
+      model: 'claude-3-7-sonnet-20250219',
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        yield chunk.delta.text;
+      }
+    }
+  } catch (error) {
+    console.error('Anthropic streaming error:', error);
+    throw new Error('Failed to stream with Anthropic');
+  }
+}
+
+async function* streamWithOpenAI(text: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const contentType = detectContentType(text);
+    const needsGraph = detectGraphRequirements(text);
+    
+    let prompt = '';
+    
+    if (contentType === 'document') {
+      prompt = `You are an expert academic assistant specializing in document analysis and summarization.
+
+CRITICAL FORMATTING REQUIREMENTS:
+- NEVER write paragraphs longer than 4-5 sentences
+- Use proper paragraph breaks with double line breaks
+- Structure with clear headings and subheadings
+- Use bullet points and numbered lists where appropriate
+- Break up dense text into readable chunks
+- Each paragraph should focus on ONE main idea
+
+Your task is to provide a comprehensive, well-structured analysis of the given text. Follow these guidelines:
+
+1. **Structure your response clearly** with proper headings and sections
+2. **Break content into short, readable paragraphs** (maximum 4-5 sentences each)  
+3. **Use headings, subheadings, bullet points, and lists** to organize information
+4. **Provide substantive analysis** - don't just reformat the text
+5. **Identify key concepts, arguments, and themes**
+6. **Use proper academic writing style** with clear transitions
+7. **Include specific examples and quotes** from the text when relevant
+8. **Focus on meaning and significance** rather than just listing information
+
+Text to analyze:`;
+    } else if (contentType === 'math') {
+      prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
+
+Solve this homework assignment with these MANDATORY requirements:
+1. ALL mathematical expressions MUST use proper LaTeX notation
+2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
+3. Use $$ for display equations: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+4. Include every mathematical step with perfect LaTeX formatting
+5. Use correct LaTeX for: fractions $\\frac{a}{b}$, exponents $x^n$, roots $\\sqrt{x}$, integrals $\\int_a^b f(x)dx$, summations $\\sum_{i=1}^n$, limits $\\lim_{x \\to 0}$, derivatives $\\frac{d}{dx}$, partial derivatives $\\frac{\\partial}{\\partial x}$
+6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
+7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
+8. Never use plain text for any mathematical symbol, number, or expression
+
+Assignment to solve:`;
+    } else {
+      // General content - no forced LaTeX
+      prompt = `You are a helpful academic assistant. Please provide a clear, well-structured response to the following request.
+
+For writing tasks:
+- Focus on clarity and good organization
+- Use proper academic writing style
+- Structure your response with appropriate headings if needed
+- Write in a natural, engaging manner
+
+For general questions:
+- Provide comprehensive yet concise answers
+- Use examples when helpful
+- Organize information logically
+
+Request:`;
+    }
+
+    if (needsGraph) {
+      prompt += `
+
+ADDITIONAL GRAPH REQUIREMENT:
+This assignment may require one or more graphs/plots. After solving the problem, you MUST provide graph data for EACH required graph in this EXACT JSON format at the very end of your response:
+
+For each graph needed:
+GRAPH_DATA_START
+{
+  "type": "line|bar|scatter",
+  "title": "Graph Title",
+  "xLabel": "X-axis Label", 
+  "yLabel": "Y-axis Label",
+  "data": [
+    {"x": value1, "y": value1},
+    {"x": value2, "y": value2}
+  ],
+  "description": "Brief description of what the graph shows"
+}
+GRAPH_DATA_END
+
+If multiple graphs are needed, provide multiple GRAPH_DATA_START...GRAPH_DATA_END blocks.
+Generate realistic data points based on the scientific/mathematical principles in the assignment.`;
+    }
+
+    prompt += `\n\n${text}`;
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      stream: true,
+      max_tokens: 4000,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        yield content;
+      }
+    }
+  } catch (error) {
+    console.error('OpenAI streaming error:', error);
+    throw new Error('Failed to stream with OpenAI');
+  }
+}
+
+async function* streamWithDeepSeek(text: string): AsyncGenerator<string, void, unknown> {
+  try {
+    const contentType = detectContentType(text);
+    const needsGraph = detectGraphRequirements(text);
+    
+    let prompt = '';
+    
+    if (contentType === 'document') {
+      prompt = `You are an expert academic assistant specializing in document analysis and summarization.
+
+CRITICAL FORMATTING REQUIREMENTS:
+- NEVER write paragraphs longer than 4-5 sentences
+- Use proper paragraph breaks with double line breaks
+- Structure with clear headings and subheadings
+- Use bullet points and numbered lists where appropriate
+- Break up dense text into readable chunks
+- Each paragraph should focus on ONE main idea
+
+Your task is to provide a comprehensive, well-structured analysis of the given text. Follow these guidelines:
+
+1. **Structure your response clearly** with proper headings and sections
+2. **Break content into short, readable paragraphs** (maximum 4-5 sentences each)  
+3. **Use headings, subheadings, bullet points, and lists** to organize information
+4. **Provide substantive analysis** - don't just reformat the text
+5. **Identify key concepts, arguments, and themes**
+6. **Use proper academic writing style** with clear transitions
+7. **Include specific examples and quotes** from the text when relevant
+8. **Focus on meaning and significance** rather than just listing information
+
+FORMAT REQUIREMENTS:
+- Use # for main headings
+- Use ## for subheadings  
+- Use - for bullet points
+- Use numbered lists for sequential information
+- Separate paragraphs with double line breaks
+- Keep paragraphs SHORT and focused
+
+If this is a request for summary, provide:
+- Main thesis or central argument
+- Key supporting points
+- Important concepts and terminology
+- Logical flow of the argument
+- Conclusions or implications
+
+If this is a request for analysis, provide:
+- Critical examination of arguments
+- Strengths and weaknesses
+- Connections to broader themes
+- Your scholarly assessment
+
+Text to analyze:`;
+    } else if (contentType === 'math') {
+      prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
+
+Solve this homework assignment with these MANDATORY requirements:
+1. ALL mathematical expressions MUST use proper LaTeX notation
+2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
+3. Use $$ for display equations: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+4. Include every mathematical step with perfect LaTeX formatting
+5. Use correct LaTeX for: fractions $\\frac{a}{b}$, exponents $x^n$, roots $\\sqrt{x}$, integrals $\\int_a^b f(x)dx$, summations $\\sum_{i=1}^n$, limits $\\lim_{x \\to 0}$, derivatives $\\frac{d}{dx}$, partial derivatives $\\frac{\\partial}{\\partial x}$
+6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
+7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
+8. Never use plain text for any mathematical symbol, number, or expression
+
+Assignment to solve:`;
+    } else {
+      // General content - no forced LaTeX
+      prompt = `You are a helpful academic assistant. Please provide a clear, well-structured response to the following request.
+
+For writing tasks:
+- Focus on clarity and good organization
+- Use proper academic writing style
+- Structure your response with appropriate headings if needed
+- Write in a natural, engaging manner
+
+For general questions:
+- Provide comprehensive yet concise answers
+- Use examples when helpful
+- Organize information logically
+
+Request:`;
+    }
+
+    if (needsGraph) {
+      prompt += `
+
+ADDITIONAL GRAPH REQUIREMENT:
+This assignment may require one or more graphs/plots. After solving the problem, you MUST provide graph data for EACH required graph in this EXACT JSON format at the very end of your response:
+
+For each graph needed:
+GRAPH_DATA_START
+{
+  "type": "line|bar|scatter",
+  "title": "Graph Title",
+  "xLabel": "X-axis Label", 
+  "yLabel": "Y-axis Label",
+  "data": [
+    {"x": value1, "y": value1},
+    {"x": value2, "y": value2}
+  ],
+  "description": "Brief description of what the graph shows"
+}
+GRAPH_DATA_END
+
+If multiple graphs are needed, provide multiple GRAPH_DATA_START...GRAPH_DATA_END blocks.
+Generate realistic data points based on the scientific/mathematical principles in the assignment.`;
+    }
+
+    prompt += `\n\n${text}`;
+
+    const stream = await deepseek.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [{ role: "user", content: prompt }],
+      stream: true,
+      max_tokens: 4000,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        yield content;
+      }
+    }
+  } catch (error) {
+    console.error('DeepSeek streaming error:', error);
+    throw new Error('Failed to stream with DeepSeek');
+  }
+}
+
 async function processWithOpenAIChat(message: string, conversationHistory: Array<{role: string, content: string}>, context?: any): Promise<{response: string, graphData?: GraphRequest[]}> {
   try {
     // Build conversation messages with proper typing
@@ -2879,6 +3249,215 @@ Respond with the refined solution only:`;
       console.error('Text processing error:', error);
       res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to process text" 
+      });
+    }
+  });
+
+  // STREAMING ENDPOINT FOR REAL-TIME RESPONSE DELIVERY
+  app.post("/api/process-text/stream", async (req, res) => {
+    try {
+      const { inputText, llmProvider, sessionId } = processAssignmentSchema.parse(req.body);
+
+      if (!inputText) {
+        return res.status(400).json({ error: "Input text is required" });
+      }
+
+      // Set up chunked streaming response
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache');
+
+      const startTime = Date.now();
+      
+      // Count tokens and calculate word-based costs
+      const inputTokens = countTokens(inputText);
+      const estimatedOutputTokens = estimateOutputTokens(inputText);
+      const wordCount = inputText.split(/\s+/).length;
+      const estimatedCreditCost = calculateCreditCost(llmProvider, wordCount);
+      
+      let actualSessionId = sessionId;
+      let userId = req.session.userId;
+      let fullContent = '';
+      let partialContent = '';
+      let isPartialResponse = false;
+      let maxStreamLength = estimatedOutputTokens * 4; // Approximate character limit
+
+      // Determine if user has sufficient credits
+      if (userId) {
+        const user = await authService.getUserById(userId);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        
+        // Check if user has insufficient credits (30% partial delivery)
+        const hasInsufficientCredits = user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost;
+        
+        if (hasInsufficientCredits) {
+          isPartialResponse = true;
+          // Limit to 30% of estimated output for partial responses
+          maxStreamLength = Math.ceil(estimatedOutputTokens * 4 * 0.3);
+        }
+      } else {
+        // Free user - always partial (30%)
+        if (!actualSessionId) {
+          actualSessionId = generateSessionId();
+        }
+        isPartialResponse = true;
+        maxStreamLength = Math.ceil(estimatedOutputTokens * 4 * 0.3);
+      }
+
+      // Get the appropriate streaming function
+      let streamFunction: AsyncGenerator<string, void, unknown>;
+      switch (llmProvider) {
+        case 'anthropic':
+          streamFunction = streamWithAnthropic(inputText);
+          break;
+        case 'openai':
+          streamFunction = streamWithOpenAI(inputText);
+          break;
+        case 'deepseek':
+          streamFunction = streamWithDeepSeek(inputText);
+          break;
+        default:
+          res.write(`\n[STREAM_DONE]{"error":"Unsupported LLM provider for streaming: ${llmProvider}"}`);
+          return res.end();
+      }
+
+      let streamedLength = 0;
+      let graphData: GraphRequest[] = [];
+
+      try {
+        // Stream the response chunks
+        for await (const chunk of streamFunction) {
+          if (chunk) {
+            fullContent += chunk;
+            
+            // Check if we need to stop streaming due to partial limit
+            if (isPartialResponse && streamedLength + chunk.length >= maxStreamLength) {
+              // Stream only the remaining allowed portion
+              const remainingChars = maxStreamLength - streamedLength;
+              if (remainingChars > 0) {
+                const partialChunk = chunk.substring(0, remainingChars);
+                res.write(partialChunk);
+                partialContent += partialChunk;
+                streamedLength += partialChunk.length;
+              }
+              break; // Stop streaming at 30% limit
+            } else {
+              // Stream the full chunk
+              res.write(chunk);
+              if (isPartialResponse) {
+                partialContent += chunk;
+              }
+              streamedLength += chunk.length;
+            }
+          }
+        }
+
+        // Extract graph data if present in full content
+        const needsGraph = detectGraphRequirements(inputText);
+        if (needsGraph && fullContent.includes('GRAPH_DATA_START')) {
+          try {
+            const graphRegex = /GRAPH_DATA_START([\s\S]*?)GRAPH_DATA_END/g;
+            let match;
+            while ((match = graphRegex.exec(fullContent)) !== null) {
+              try {
+                const graphJson = match[1].trim();
+                const parsedGraph = JSON.parse(graphJson);
+                graphData.push(parsedGraph);
+              } catch (error) {
+                console.error('Failed to parse individual graph data:', error);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to parse graph data:', error);
+          }
+        }
+
+        // Clean the content to remove graph data markers
+        const responseToStore = isPartialResponse ? partialContent : fullContent;
+        const cleanedResponse = responseToStore.replace(/GRAPH_DATA_START[\s\S]*?GRAPH_DATA_END/g, '').trim();
+
+        // Generate graphs if needed and user has sufficient credits
+        let graphImages: string[] | undefined = undefined;
+        let graphDataJsons: string[] | undefined = undefined;
+        
+        if (!isPartialResponse && graphData.length > 0) {
+          graphImages = [];
+          graphDataJsons = [];
+          
+          try {
+            for (const graph of graphData) {
+              const graphImage = await generateGraph(graph);
+              graphImages.push(graphImage);
+              graphDataJsons.push(JSON.stringify(graph));
+            }
+          } catch (error) {
+            console.error('Graph generation error:', error);
+          }
+        }
+
+        const processingTime = Date.now() - startTime;
+        const outputTokens = countTokens(cleanedResponse);
+        const actualCreditCost = calculateCreditCost(llmProvider, cleanedResponse.split(/\s+/).length);
+
+        // Store assignment in database
+        try {
+          const assignment = await storage.createAssignment({
+            userId: userId || null,
+            sessionId: actualSessionId,
+            inputText,
+            inputType: 'text',
+            fileName: null,
+            extractedText: null,
+            llmProvider,
+            llmResponse: cleanedResponse,
+            graphData: graphDataJsons,
+            graphImages: graphImages,
+            processingTime,
+            inputTokens,
+            outputTokens,
+          });
+
+          // Deduct credits for registered users with sufficient balance
+          if (userId && !isPartialResponse) {
+            const user = await authService.getUserById(userId);
+            if (user && user.username !== 'jmkuczynski' && user.username !== 'randyjohnson') {
+              const newBalance = Math.max(0, (user.tokenBalance || 0) - actualCreditCost);
+              await authService.updateUserTokenBalance(userId, newBalance);
+            }
+          }
+
+          // Send completion metadata
+          res.write(`\n[STREAM_DONE]${JSON.stringify({
+            partial: isPartialResponse,
+            error: null,
+            assignmentId: assignment.id,
+            graphData: graphDataJsons,
+            graphImages: graphImages,
+            processingTime,
+            success: true
+          })}`);
+        } catch (dbError) {
+          console.error('Database error during streaming:', dbError);
+          res.write(`\n[STREAM_DONE]{"error":"Failed to save assignment","partial":${isPartialResponse}}`);
+        }
+
+      } catch (streamError) {
+        console.error('Streaming error:', streamError);
+        res.write(`\n[STREAM_DONE]{"error":"${streamError instanceof Error ? streamError.message : 'Streaming failed'}","partial":${isPartialResponse}}`);
+      }
+
+      res.end();
+
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      
+      console.error('Streaming endpoint error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to start streaming" 
       });
     }
   });
