@@ -2536,6 +2536,34 @@ Respond with the refined solution only:`;
         return res.status(400).json({ error: "No text could be extracted from the file" });
       }
 
+      // Credit checking logic for file uploads
+      let hasInsufficientCredits = false;
+      const userId = req.session.userId;
+      
+      if (userId) {
+        // Registered user - check credit balance
+        const user = await authService.getUserById(userId);
+        if (user) {
+          const wordCount = extractedText.split(/\s+/).length;
+          const estimatedCreditCost = calculateCreditCost(llmProvider, wordCount);
+          
+          // Check if user has sufficient credits (exclude unlimited users)
+          hasInsufficientCredits = user.username !== 'jmkuczynski' && user.username !== 'randyjohnson' && (user.tokenBalance || 0) < estimatedCreditCost;
+        }
+      } else {
+        // Anonymous user - check daily limits (similar to freemium model)
+        const sessionId = req.body.sessionId || generateSessionId();
+        const today = getTodayDate();
+        const dailyUsage = await storage.getDailyUsage(sessionId, today);
+        const wordCount = extractedText.split(/\s+/).length;
+        const estimatedTokens = Math.ceil(wordCount * 2); // Rough estimation
+        
+        // If daily usage would exceed limit, use partial content
+        if (dailyUsage.totalTokens + estimatedTokens > DAILY_TOKEN_LIMIT) {
+          hasInsufficientCredits = true;
+        }
+      }
+
       // Process with selected LLM
       let llmResult: {response: string, graphData?: GraphRequest[]};
       switch (llmProvider) {
@@ -2582,14 +2610,20 @@ Respond with the refined solution only:`;
 
       // Don't auto-save assignment
 
+      // Generate response based on credit availability (only affects what's returned to client)
+      const finalResponse = hasInsufficientCredits 
+        ? generatePartialContent(llmResult.response)
+        : llmResult.response;
+
       const response: ProcessAssignmentResponse = {
         id: Date.now(), // Generate a temporary ID for the response
         extractedText,
-        llmResponse: llmResult.response,
-        graphData: graphDataJsons,
-        graphImages: graphImages,
+        llmResponse: finalResponse,
+        graphData: hasInsufficientCredits ? undefined : graphDataJsons, // No graphs for partial content
+        graphImages: hasInsufficientCredits ? undefined : graphImages, // No graphs for partial content
         processingTime,
         success: true,
+        isPartial: hasInsufficientCredits // Add flag to indicate partial content
       };
 
       res.json(response);
@@ -2732,7 +2766,7 @@ Respond with the refined solution only:`;
           }
         }
 
-        // Store assignment
+        // Store assignment with FULL response (important for future access)
         const assignment = await storage.createAssignment({
           userId,
           sessionId: null,
@@ -2741,15 +2775,15 @@ Respond with the refined solution only:`;
           fileName: null,
           extractedText: null,
           llmProvider,
-          llmResponse: llmResult.response,
-          graphData: graphDataJsons,
-          graphImages: graphImages,
+          llmResponse: llmResult.response, // Store full response
+          graphData: graphDataJsons, // Store full graph data
+          graphImages: graphImages, // Store full graph images
           processingTime,
           inputTokens,
           outputTokens: actualOutputTokens,
         });
 
-        // Generate response based on credit availability
+        // Generate response based on credit availability (only affects what's returned to client)
         const finalResponse = hasInsufficientCredits 
           ? generatePartialContent(llmResult.response)
           : llmResult.response;
