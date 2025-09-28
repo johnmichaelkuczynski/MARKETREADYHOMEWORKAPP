@@ -134,3 +134,11 @@ The application employs a clear client-server architecture.
   - Achieved complete consistency across TextareaWithVoice, InputWithVoice, and MathTextarea components
   - All voice dictation fields now show synchronized "[Transcribing...]" messages during processing pauses
   - Unified user experience with identical visual feedback patterns across the entire application
+
+### September 28, 2025
+- **30% Partial Content System IMPLEMENTED**: Updated partial content delivery system to show 30% instead of 50% of solutions for users with insufficient credits
+  - Modified `generatePartialContent()` function to use 30% ratio (PARTIAL_RATIO = 0.3) instead of previous 50%
+  - Updated all user-facing messaging in both server and client to reflect "partial solution (30%)" instead of "(50%)"
+  - Applied consistently across all content types: math problems, document analysis, and general questions
+  - Improved user value proposition while maintaining revenue incentives for credit purchases
+  - Ensures users get meaningful preview content (~30%) without being completely blocked from solutions

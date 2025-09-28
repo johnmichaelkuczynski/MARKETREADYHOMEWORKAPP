@@ -958,7 +958,7 @@ ${fullResponse.slice(-1000)}...`;
       if (data.isPartial) {
         toast({
           title: "Partial Solution Generated",
-          description: `You've received 50% of the solution due to insufficient credits. Buy more credits to get the complete solution.`,
+          description: `You've received 30% of the solution due to insufficient credits. Buy more credits to get the complete solution.`,
           variant: "destructive",
         });
       } else {
@@ -1029,7 +1029,7 @@ ${fullResponse.slice(-1000)}...`;
       if (data.isPartial) {
         toast({
           title: "Partial Solution Generated",
-          description: `You've received 50% of the solution due to insufficient credits. Buy more credits to get the complete solution.`,
+          description: `You've received 30% of the solution due to insufficient credits. Buy more credits to get the complete solution.`,
           variant: "destructive",
         });
       } else {

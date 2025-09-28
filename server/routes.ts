@@ -172,8 +172,9 @@ function generatePreview(fullResponse: string): string {
   }
 }
 
-// Generate partial content for insufficient credits (50% content)
+// Generate partial content for insufficient credits (30% content)
 function generatePartialContent(fullResponse: string): string {
+  const PARTIAL_RATIO = 0.3; // 30%
   // Remove any existing graph data JSON from the end
   const lines = fullResponse.split('\n');
   let contentLines = [...lines];
@@ -188,28 +189,28 @@ function generatePartialContent(fullResponse: string): string {
   
   const cleanResponse = contentLines.join('\n').trim();
   
-  // For math problems: Show 50% of content
+  // For math problems: Show 30% of content
   if (detectContentType(cleanResponse) === 'math') {
     const words = cleanResponse.split(/\s+/);
-    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    const partialWords = words.slice(0, Math.ceil(words.length * PARTIAL_RATIO)); // 30% of content
     
-    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial solution (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete step-by-step solution]';
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial solution (30%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete step-by-step solution]';
   }
   
-  // For documents: Show 50% of content  
+  // For documents: Show 30% of content  
   else if (detectContentType(cleanResponse) === 'document') {
     const words = cleanResponse.split(/\s+/);
-    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    const partialWords = words.slice(0, Math.ceil(words.length * PARTIAL_RATIO)); // 30% of content
     
-    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial analysis (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed analysis]';
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial analysis (30%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed analysis]';
   }
   
-  // For general questions: Show 50% of content
+  // For general questions: Show 30% of content
   else {
     const words = cleanResponse.split(/\s+/);
-    const partialWords = words.slice(0, Math.ceil(words.length * 0.5)); // 50% of content
+    const partialWords = words.slice(0, Math.ceil(words.length * PARTIAL_RATIO)); // 30% of content
     
-    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial answer (50%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed response]';
+    return partialWords.join(' ') + '...\n\n**🔒 You\'ve used all your credits. This is a partial answer (30%).**\n\n[Buy More Credits with Stripe or PayPal to see the complete detailed response]';
   }
 }
 
