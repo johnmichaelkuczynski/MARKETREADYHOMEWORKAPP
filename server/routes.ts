@@ -876,7 +876,7 @@ Generate realistic data points based on the scientific/mathematical principles i
 }
 
 // Streaming version of processWithAnthropic
-async function processWithAnthropicStream(text: string, onChunk: (chunk: string) => void): Promise<{response: string, graphData?: GraphRequest[]}> {
+async function processWithAnthropicStream(text: string, onChunk: (chunk: string) => void, abortSignal?: AbortSignal): Promise<{response: string, graphData?: GraphRequest[]}> {
   try {
     const contentType = detectContentType(text);
     const needsGraph = detectGraphRequirements(text);
@@ -984,6 +984,11 @@ Generate realistic data points based on the scientific/mathematical principles i
     let accumulatedResponse = '';
     
     for await (const chunk of stream) {
+      // Check if abort signal was triggered
+      if (abortSignal?.aborted) {
+        break;
+      }
+      
       if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text') {
         const chunkText = chunk.delta.text;
         accumulatedResponse += chunkText;
@@ -1027,7 +1032,7 @@ Generate realistic data points based on the scientific/mathematical principles i
 }
 
 // Streaming version of processWithOpenAI
-async function processWithOpenAIStream(text: string, onChunk: (chunk: string) => void): Promise<{response: string, graphData?: GraphRequest[]}> {
+async function processWithOpenAIStream(text: string, onChunk: (chunk: string) => void, abortSignal?: AbortSignal): Promise<{response: string, graphData?: GraphRequest[]}> {
   try {
     const contentType = detectContentType(text);
     const needsGraph = detectGraphRequirements(text);
@@ -1111,6 +1116,11 @@ Generate realistic data points based on the scientific/mathematical principles i
     let accumulatedResponse = '';
     
     for await (const chunk of stream) {
+      // Check if abort signal was triggered
+      if (abortSignal?.aborted) {
+        break;
+      }
+      
       const chunkText = chunk.choices[0]?.delta?.content || '';
       if (chunkText) {
         accumulatedResponse += chunkText;
@@ -1154,7 +1164,7 @@ Generate realistic data points based on the scientific/mathematical principles i
 }
 
 // Streaming version of processWithDeepSeek
-async function processWithDeepSeekStream(text: string, onChunk: (chunk: string) => void): Promise<{response: string, graphData?: GraphRequest[]}> {
+async function processWithDeepSeekStream(text: string, onChunk: (chunk: string) => void, abortSignal?: AbortSignal): Promise<{response: string, graphData?: GraphRequest[]}> {
   try {
     const contentType = detectContentType(text);
     const needsGraph = detectGraphRequirements(text);
@@ -1238,6 +1248,11 @@ Generate realistic data points based on the scientific/mathematical principles i
     let accumulatedResponse = '';
     
     for await (const chunk of stream) {
+      // Check if abort signal was triggered
+      if (abortSignal?.aborted) {
+        break;
+      }
+      
       const chunkText = chunk.choices[0]?.delta?.content || '';
       if (chunkText) {
         accumulatedResponse += chunkText;
@@ -2767,6 +2782,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Streaming version of process-text endpoint
   app.post("/api/process-text-stream", async (req, res) => {
+    let streamAborted = false;
+    let providerAbortController: AbortController | null = null;
+    
     try {
       const { inputText, llmProvider, sessionId } = processAssignmentSchema.parse(req.body);
 
@@ -2781,6 +2799,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Cache-Control'
+      });
+
+      // PRODUCTION HARDENING: Clean up resources when client disconnects
+      req.on('close', () => {
+        streamAborted = true;
+        if (providerAbortController) {
+          providerAbortController.abort();
+        }
+        console.log('Client disconnected, streaming aborted');
+      });
+
+      req.on('end', () => {
+        streamAborted = true;
+        if (providerAbortController) {
+          providerAbortController.abort();
+        }
       });
 
       const startTime = Date.now();
@@ -2817,26 +2851,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Process with streaming response
         let accumulatedResponse = '';
         let graphData: GraphRequest[] | undefined;
+        let sentenceBuffer = '';
+        
+        // PRODUCTION HARDENING: Sentence-based buffering for stable formatting
+        const flushSentence = () => {
+          if (sentenceBuffer.trim() && !streamAborted) {
+            res.write(`data: ${JSON.stringify({ type: 'chunk', content: sentenceBuffer })}\n\n`);
+            sentenceBuffer = '';
+          }
+        };
+        
+        // Enhanced chunk callback with sentence buffering
+        const bufferedChunkCallback = (chunk: string) => {
+          if (streamAborted) return;
+          
+          sentenceBuffer += chunk;
+          
+          // Flush on sentence endings, equation breaks, or substantial content
+          if (sentenceBuffer.match(/[.!?]\s+/) || 
+              sentenceBuffer.match(/\$\$.*?\$\$/g) || 
+              sentenceBuffer.match(/\\\]/g) ||
+              sentenceBuffer.length > 100) {
+            flushSentence();
+          }
+        };
+        
+        // Create abort controller for provider calls
+        providerAbortController = new AbortController();
         
         switch (llmProvider) {
           case 'anthropic':
-            ({ response: accumulatedResponse, graphData } = await processWithAnthropicStream(inputText, (chunk) => {
-              res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
-            }));
+            ({ response: accumulatedResponse, graphData } = await processWithAnthropicStream(inputText, bufferedChunkCallback, providerAbortController.signal));
             break;
           case 'openai':
-            ({ response: accumulatedResponse, graphData } = await processWithOpenAIStream(inputText, (chunk) => {
-              res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
-            }));
+            ({ response: accumulatedResponse, graphData } = await processWithOpenAIStream(inputText, bufferedChunkCallback, providerAbortController.signal));
             break;
           case 'deepseek':
-            ({ response: accumulatedResponse, graphData } = await processWithDeepSeekStream(inputText, (chunk) => {
-              res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
-            }));
+            ({ response: accumulatedResponse, graphData } = await processWithDeepSeekStream(inputText, bufferedChunkCallback, providerAbortController.signal));
             break;
           default:
             res.write(`data: ${JSON.stringify({ type: 'error', message: `Unsupported LLM provider for streaming: ${llmProvider}` })}\n\n`);
             return res.end();
+        }
+
+        // Flush any remaining buffered content
+        flushSentence();
+        
+        if (streamAborted) {
+          return; // Client disconnected, don't continue processing
         }
 
         const actualOutputTokens = countTokens(accumulatedResponse);
@@ -2861,6 +2923,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileName: null
         });
 
+        // Short-circuit expensive operations if client disconnected
+        if (streamAborted) {
+          console.log('Client disconnected, skipping graph generation and DB writes');
+          return; // Don't continue processing
+        }
+
         // Generate graphs if required
         let graphImages: string[] | undefined;
         let graphDataJsons: string[] | undefined;
@@ -2871,6 +2939,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             graphDataJsons = [];
             
             for (const graph of graphData) {
+              if (streamAborted) {
+                console.log('Client disconnected during graph generation');
+                return; // Abort during graph generation
+              }
+              
               const graphImage = await generateGraph(graph);
               graphImages.push(graphImage);
               graphDataJsons.push(JSON.stringify(graph));
@@ -2878,6 +2951,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch (error) {
             console.error('Graph generation error:', error);
           }
+        }
+
+        // Final check before database operations
+        if (streamAborted) {
+          console.log('Client disconnected, skipping database operations');
+          return;
         }
 
         // Send completion
