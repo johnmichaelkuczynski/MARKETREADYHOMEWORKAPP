@@ -2786,7 +2786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let providerAbortController: AbortController | null = null;
     
     try {
-      const { inputText, llmProvider, sessionId } = processAssignmentSchema.parse(req.body);
+      const { inputText, llmProvider, sessionId } = req.body;
 
       if (!inputText) {
         return res.status(400).json({ error: "Input text is required" });
