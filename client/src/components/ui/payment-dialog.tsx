@@ -7,9 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, CreditCard, Star, Zap, Crown, Diamond } from "lucide-react";
+import { Loader2, CreditCard, Star, Zap, Crown, Diamond, Info, CheckCircle, XCircle } from "lucide-react";
 import PayPalButton from "@/components/PayPalButton";
 import StripeButton from "@/components/StripeButton";
+import { LLM_PROVIDERS, formatPricingDisplay } from "@shared/pricing";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -222,7 +223,52 @@ export function PaymentDialog({ open, onClose, user }: PaymentDialogProps) {
           })}
         </div>
         
-        <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+        {/* LLM Provider Pricing Information */}
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-600" />
+            LLM Provider Pricing & Performance
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {Object.values(LLM_PROVIDERS).map((provider) => (
+              <div key={provider.id} className="bg-white dark:bg-gray-800 p-3 rounded border">
+                <div className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  {provider.name}
+                </div>
+                <div className="text-xs text-blue-600 dark:text-blue-400 mb-2 font-mono">
+                  {formatPricingDisplay(provider)}
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-green-700 dark:text-green-400">
+                    <div className="flex items-start gap-1">
+                      <CheckCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <div>
+                        {provider.merits.slice(0, 2).map((merit, idx) => (
+                          <div key={idx}>• {merit}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-red-700 dark:text-red-400">
+                    <div className="flex items-start gap-1">
+                      <XCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <div>
+                        {provider.demerits.slice(0, 1).map((demerit, idx) => (
+                          <div key={idx}>• {demerit}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-xs text-muted-foreground">
+            <strong>Note:</strong> Credit consumption varies by LLM choice. Choose the provider that best fits your academic needs and budget.
+          </div>
+        </div>
+        
+        <div className="mt-4 p-4 bg-muted/50 rounded-lg">
           <h4 className="font-medium mb-2">What you get with tokens:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Unlimited homework problem solving</li>
