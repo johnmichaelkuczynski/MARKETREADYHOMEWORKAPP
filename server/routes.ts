@@ -23,7 +23,7 @@ import { createPaypalOrder, capturePaypalOrder, loadPaypalDefault } from "./payp
 import './types';
 
 // GPT BYPASS service imports
-import { aiProviderService, streamWithAnthropic, streamWithOpenAI, streamWithDeepSeek } from './services/aiProviders';
+import { aiProviderService } from './services/aiProviders';
 import { gptZeroService } from './services/gptZero';
 import { fileProcessorService } from './services/fileProcessor';
 import { textChunkerService } from './services/textChunker';
@@ -4259,7 +4259,6 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       // Store in database
       const jobId = `rewrite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await storage.createRewriteJob({
-        id: jobId,
         inputText,
         styleText,
         contentMixText,
@@ -4363,7 +4362,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json(job);
     } catch (error) {
       console.error('Get job error:', error);
-      res.status(500).json({ error: error.message || 'Failed to get job' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to get job' });
     }
   });
 
@@ -4373,7 +4372,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json(jobs);
     } catch (error) {
       console.error('Get jobs error:', error);
-      res.status(500).json({ error: error.message || 'Failed to get jobs' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to get jobs' });
     }
   });
 
@@ -4390,7 +4389,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json({ transcript });
     } catch (error) {
       console.error('Voice transcription error:', error);
-      res.status(500).json({ error: error.message || 'Failed to transcribe audio' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to transcribe audio' });
     }
   });
 
@@ -4415,7 +4414,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json({ text: transcript || '' });
     } catch (error) {
       console.error('Real-time voice transcription error:', error);
-      res.status(500).json({ error: error.message || 'Failed to transcribe voice audio' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to transcribe voice audio' });
     }
   });
 
