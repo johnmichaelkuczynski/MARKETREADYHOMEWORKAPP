@@ -1785,18 +1785,17 @@ async function generateMathPDF(content: string, title: string = 'Assignment Solu
     
     // Wait for MathJax to load and render all math
     await page.evaluate(() => {
-      return new Promise((resolve) => {
-        if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
-          window.MathJax.startup.promise.then(() => {
-            if (window.MathJax.typesetPromise) {
-              window.MathJax.typesetPromise.then(resolve);
-            } else {
-              resolve();
-            }
-          });
+      return new Promise<void>((resolve) => {
+        if ((window as any).MathJax) {
+          const mathJax = (window as any).MathJax;
+          if (mathJax.typesetPromise) {
+            mathJax.typesetPromise().then(() => resolve());
+          } else {
+            resolve();
+          }
         } else {
           // Fallback timeout if MathJax doesn't load
-          setTimeout(resolve, 3000);
+          setTimeout(() => resolve(), 3000);
         }
       });
     });
@@ -1969,7 +1968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priceLiveMode: !!(priceInfo && priceInfo.livemode)
       });
     } catch (e) {
-      res.status(500).json({ diagError: e.message || String(e) });
+      res.status(500).json({ diagError: (e as Error).message || String(e) });
     }
   });
 
@@ -2278,7 +2277,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[STRIPE CHECKOUT] Session creation failed:', error);
       if (error && typeof error === 'object' && 'type' in error) {
-        console.error(`[STRIPE CHECKOUT] Stripe error - type: ${error.type}, code: ${error.code}, message: ${error.message}`);
+        const stripeError = error as any;
+        console.error(`[STRIPE CHECKOUT] Stripe error - type: ${stripeError.type}, code: ${stripeError.code}, message: ${stripeError.message}`);
       }
       res.status(500).json({ error: "CREATE_SESSION_FAILED" });
     }
@@ -2317,7 +2317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userId = existingPayment.userId;
           console.log(`[STRIPE DEBUG] Crediting ${tokens} tokens to user ${userId} from payment record`);
           
-          if (tokens > 0 && userId > 0) {
+          if (tokens > 0 && userId && userId > 0) {
             // Update user's token balance
             const user = await authService.getUserById(userId);
             if (user) {
@@ -2356,7 +2356,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(`[STRIPE DEBUG] Payment status check error for session ${req.params.sessionId}:`, error);
       // Check if it's a Stripe API error
       if (error && typeof error === 'object' && 'type' in error) {
-        console.error(`[STRIPE DEBUG] Stripe error type: ${error.type}, code: ${error.code}, message: ${error.message}`);
+        const stripeError = error as any;
+        console.error(`[STRIPE DEBUG] Stripe error type: ${stripeError.type}, code: ${stripeError.code}, message: ${stripeError.message}`);
       }
       res.status(500).json({ error: 'Failed to check payment status' });
     }
@@ -3683,8 +3684,8 @@ Please provide an improved solution that addresses the feedback. Maintain proper
         customInstructions,
         selectedPresets,
         provider,
-        chunks: JSON.stringify(chunks),
-        selectedChunkIds: JSON.stringify(selectedChunkIds || []),
+        chunks: chunks,
+        selectedChunkIds: selectedChunkIds || [],
         mixingMode,
         outputText: rewrittenText,
         inputAiScore: initialScore.aiScore,
@@ -3700,7 +3701,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       });
     } catch (error) {
       console.error('Rewrite error:', error);
-      res.status(500).json({ error: error.message || 'Failed to rewrite text' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to rewrite text' });
     }
   });
 
@@ -3717,7 +3718,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json(result);
     } catch (error) {
       console.error('Analysis error:', error);
-      res.status(500).json({ error: error.message || 'Failed to analyze text' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to analyze text' });
     }
   });
 
@@ -3735,7 +3736,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json({ chunks, stats });
     } catch (error) {
       console.error('Chunking error:', error);
-      res.status(500).json({ error: error.message || 'Failed to chunk text' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to chunk text' });
     }
   });
 
@@ -3757,7 +3758,6 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       
       // Store document in database
       await storage.createDocument({
-        id: processedFile.id,
         filename: processedFile.filename,
         content: processedFile.content,
         wordCount: processedFile.wordCount
@@ -3766,7 +3766,7 @@ Please provide an improved solution that addresses the feedback. Maintain proper
       res.json(processedFile);
     } catch (error) {
       console.error('File upload error:', error);
-      res.status(500).json({ error: error.message || 'Failed to process file' });
+      res.status(500).json({ error: (error as Error).message || 'Failed to process file' });
     }
   });
 
