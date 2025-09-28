@@ -882,7 +882,7 @@ Generate realistic data points based on the scientific/mathematical principles i
         role: 'user', 
         content: prompt
       }],
-      model: 'claude-3-7-sonnet-20250219',
+      model: 'claude-3-5-sonnet-20241022',
     });
 
     const response = message.content[0]?.type === 'text' ? message.content[0].text : 'No response generated';
@@ -1041,7 +1041,7 @@ Generate realistic data points based on the scientific/mathematical principles i
         role: 'user', 
         content: prompt
       }],
-      model: 'claude-3-7-sonnet-20250219',
+      model: 'claude-3-5-sonnet-20241022',
       stream: true,
     });
 
