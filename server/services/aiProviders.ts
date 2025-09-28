@@ -378,7 +378,7 @@ export class AIProviderService {
   async rewrite(provider: string, params: RewriteParams): Promise<string> {
     // Define fallback order
     const providers = [provider, 'openai', 'anthropic', 'deepseek'];
-    const uniqueProviders = [...new Set(providers)]; // Remove duplicates
+    const uniqueProviders = Array.from(new Set(providers)); // Remove duplicates
 
     let lastError: Error | null = null;
     
