@@ -21,7 +21,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
     // Import Stripe properly for ESM
     const Stripe = (await import('stripe')).default;
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2024-06-20'
+      apiVersion: '2025-06-30.basil'
     });
     
     event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET_HOMEWORKHELPER!);
@@ -47,7 +47,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
       console.log(`[STRIPE WEBHOOK] Event ${event.id} already processed - skipping`);
       return res.status(200).json({ received: true });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.log(`[STRIPE WEBHOOK] Could not check event idempotency, proceeding: ${error.message}`);
   }
 
@@ -69,8 +69,8 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
         
         // RENDER FIX: Fetch line items to get price metadata for credits
         const Stripe = (await import('stripe')).default;
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-          apiVersion: '2024-06-20'
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: '2025-06-30.basil'
         });
         
         try {
@@ -90,7 +90,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
               console.log(`[STRIPE WEBHOOK] Using fallback tokens from session metadata: ${tokens}`);
             }
           }
-        } catch (lineItemError) {
+        } catch (lineItemError: any) {
           console.error(`[STRIPE WEBHOOK] Error fetching line items: ${lineItemError.message}`);
           // Fallback to session metadata
           tokens = parseInt(session.metadata?.tokens || '0');
@@ -130,14 +130,14 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
           };
           await storage.updateStripePaymentMetadata?.(sessionId, updatedMetadata);
         }
-      } catch (metadataError) {
+      } catch (metadataError: any) {
         console.log(`[STRIPE WEBHOOK] Could not update event metadata: ${metadataError.message}`);
       }
       
       console.log(`[STRIPE WEBHOOK] SUCCESS: Credited ${tokens} tokens to user ${userId}, new balance: ${result.newBalance} for event ${event.id}`);
       return res.status(200).json({ received: true });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[STRIPE WEBHOOK] Error processing ${event.type} for event ${event.id}:`, error);
       
       // Differentiate between transient and permanent errors for Render
