@@ -36,6 +36,7 @@ The application utilizes a client-server architecture.
 - **Dual Payment System**: Full payment infrastructure with PayPal and Stripe for authentication, session tracking, and flexible payment options.
 - **Multi-User Data Isolation**: PostgreSQL enforces user-scoped data access via `user_id` filtering, ensuring security and supporting anonymous users.
 - **GPT BYPASS**: Integrated functionality for text rewriting and AI detection score reduction, including chunked processing for large documents.
+- **Centralized Paywall System**: Robust freemium enforcement via `server/paywall/freemium.ts` ensures identical 30% preview limits across streaming and non-streaming endpoints, with fail-closed design and comprehensive audit logging.
 
 ## External Dependencies
 
