@@ -309,6 +309,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -318,6 +320,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -821,6 +824,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -830,6 +835,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -980,6 +986,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -989,6 +997,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -1090,6 +1099,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -1099,6 +1110,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -1219,6 +1231,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -1228,6 +1242,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -1368,6 +1383,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -1377,6 +1394,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -1497,6 +1515,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -1506,6 +1526,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
@@ -1679,6 +1700,8 @@ Text to analyze:`;
     } else if (contentType === 'math') {
       prompt = `CRITICAL: You MUST use perfect LaTeX mathematical notation for ALL mathematical content. This is non-negotiable.
 
+CRITICAL: COMPLETE THE ENTIRE ASSIGNMENT WITHOUT STOPPING. DO NOT ask for permission to continue. DO NOT ask "Would you like me to continue". SOLVE EVERY PROBLEM COMPLETELY IN ONE RESPONSE.
+
 Solve this homework assignment with these MANDATORY requirements:
 1. ALL mathematical expressions MUST use proper LaTeX notation
 2. Use $ for inline math: $x^2$, $\\frac{a}{b}$, $\\sin(x)$, $\\pi$, $\\alpha$
@@ -1688,6 +1711,7 @@ Solve this homework assignment with these MANDATORY requirements:
 6. Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\pi$, $\\theta$, $\\lambda$, $\\mu$, $\\sigma$
 7. Functions: $\\sin(x)$, $\\cos(x)$, $\\tan(x)$, $\\log(x)$, $\\ln(x)$, $e^x$
 8. Never use plain text for any mathematical symbol, number, or expression
+9. COMPLETE ALL SECTIONS AND ALL PROBLEMS - DO NOT STOP MID-SOLUTION
 
 Assignment to solve:`;
     } else {
